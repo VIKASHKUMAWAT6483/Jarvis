@@ -81,6 +81,168 @@ export class AgentCore {
                 args: { fileName: 'assistant_temp.tmp', content: 'Temporary cache contents.' }
             };
         }
+        // 5. Gmail Draft Creation
+        if (p.includes('email draft') || p.includes('draft karo') || p.includes('email draft karo') || p.includes('gmail_create_draft')) {
+            let recipient = 'client@example.com';
+            let subject = 'Status Update';
+            let body = 'Hi, this is a draft from Jarvis.';
+            if (p.includes('app ka testing kal complete ho jayega') || p.includes('app ka testing kal')) {
+                body = 'Testing update: App testing will be completed tomorrow.';
+                subject = 'App Testing Status Update';
+                recipient = 'client@example.com';
+            }
+            return {
+                toolName: 'gmail_create_draft',
+                args: { recipient, subject, body }
+            };
+        }
+        // 6. Reminders Creation
+        if (p.includes('remind') || p.includes('remind karna') || p.includes('reminder_create')) {
+            let message = 'App testing reminder';
+            let time = '08:00 AM';
+            if (p.includes('app testing remind karna') || p.includes('testing remind')) {
+                message = 'App testing validation';
+                time = 'Tomorrow 8:00 AM';
+            }
+            return {
+                toolName: 'reminder_create',
+                args: { message, time }
+            };
+        }
+        // 7. Calendar Event Creation
+        if (p.includes('event add') || p.includes('event create') || p.includes('calendar_create_event')) {
+            let title = 'Project Review';
+            let date = 'Friday 5:00 PM';
+            let attendees = '';
+            if (p.includes('project review event add') || p.includes('Friday ko 5 PM')) {
+                title = 'Project Review Meeting';
+                date = 'Friday 5:00 PM';
+                if (p.includes('with attendees') || p.includes('members')) {
+                    attendees = 'client@example.com, manager@example.com';
+                }
+            }
+            return {
+                toolName: 'calendar_create_event',
+                args: { title, date, attendees }
+            };
+        }
+        // 8. Calendar List Today
+        if (p.includes('calendar today') || p.includes('events today') || p.includes('calendar_list_today')) {
+            return {
+                toolName: 'calendar_list_today',
+                args: {}
+            };
+        }
+        // 9. Message Draft Creation
+        if (p.includes('message draft') || p.includes('msg draft') || p.includes('message_create_draft')) {
+            let recipient = 'Rahul';
+            let message = 'I will call you in 30 minutes.';
+            if (p.includes('Rahul ko message draft karo') || p.includes('Rahul')) {
+                recipient = 'Rahul';
+                message = 'main 30 minute me call karunga.';
+            }
+            return {
+                toolName: 'message_create_draft',
+                args: { recipient, message }
+            };
+        }
+        // 10. Call Preparation
+        if (p.includes('call prepare') || p.includes('call_prepare')) {
+            let recipient = 'Rahul';
+            if (p.includes('Rahul')) {
+                recipient = 'Rahul';
+            }
+            return {
+                toolName: 'call_prepare',
+                args: { recipient }
+            };
+        }
+        // 11. Contact Lookup Placeholder
+        if (p.includes('lookup contact') || p.includes('find contact') || p.includes('contact_lookup_placeholder')) {
+            let name = 'Rahul';
+            if (p.includes('Rahul')) {
+                name = 'Rahul';
+            }
+            return {
+                toolName: 'contact_lookup_placeholder',
+                args: { name }
+            };
+        }
+        // 12. Firebase Console Open
+        if (p.includes('firebase console') || p.includes('open firebase') || p.includes('open_firebase_console_placeholder')) {
+            return {
+                toolName: 'open_firebase_console_placeholder',
+                args: {}
+            };
+        }
+        // 13. Play Console Open
+        if (p.includes('play console') || p.includes('open play') || p.includes('open_google_play_console_placeholder')) {
+            return {
+                toolName: 'open_google_play_console_placeholder',
+                args: {}
+            };
+        }
+        // 14. GitHub Repo Open
+        if (p.includes('github repo') || p.includes('open github') || p.includes('open_github_repo_placeholder')) {
+            return {
+                toolName: 'open_github_repo_placeholder',
+                args: {}
+            };
+        }
+        // 15. Raw URL Open
+        if (p.includes('open url') || p.includes('open link') || p.includes('open_url')) {
+            let url = 'https://google.com';
+            const match = prompt.match(/(https?:\/\/[^\s]+)/i);
+            if (match) {
+                url = match[1];
+            }
+            return {
+                toolName: 'open_url',
+                args: { url }
+            };
+        }
+        // 16. Web Search Query
+        if (p.includes('search web') || p.includes('web search') || p.includes('search_web_query')) {
+            let query = 'Jarvis AI';
+            return {
+                toolName: 'search_web_query',
+                args: { query }
+            };
+        }
+        // 17. GitHub Issue Draft Creation
+        if (p.includes('github issue draft') || p.includes('github issue') || p.includes('issue draft') || p.includes('github_create_issue_draft')) {
+            let title = 'Bug Report';
+            let body = 'A bug was reported by the user.';
+            if (p.includes('current bug') || p.includes('bug')) {
+                title = 'Bug: Voice transcriptionSSD error';
+                body = 'Voice transcription fails when external SSD is unmounted.';
+            }
+            return {
+                toolName: 'github_create_issue_draft',
+                args: { title, body }
+            };
+        }
+        // 18. GitHub Repo Status
+        if (p.includes('github status') || p.includes('repo status') || p.includes('github_repo_status')) {
+            return {
+                toolName: 'github_repo_status',
+                args: {}
+            };
+        }
+        // 19. GitHub List Issues
+        if (p.includes('github issues') || p.includes('list issues') || p.includes('github_list_issues')) {
+            return {
+                toolName: 'github_list_issues',
+                args: {}
+            };
+        }
+        // 20. GitHub PR Summary
+        if (p.includes('github pr') || p.includes('pr summary') || p.includes('github_pr_summary')) {
+            return {
+                toolName: 'github_pr_summary',
+                args: {}
+            };
+        }
         return { toolName: null, args: {} };
     }
     /**

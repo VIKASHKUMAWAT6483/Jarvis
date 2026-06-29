@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared-types" },
+    { "path": "packages/storage-manager" },
+    { "path": "packages/safety-engine" },
+    { "path": "packages/tool-registry" },
+    { "path": "packages/agent-core" },
+    { "path": "packages/voice-service" },
+    { "path": "packages/database-manager" },
+    { "path": "packages/project-manager" }
+  ]
+}

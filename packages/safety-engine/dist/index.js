@@ -36,7 +36,11 @@ export class SafetyEngine {
         /npm\s+i(\s|$)/, // npm i
         /npm\s+run\s+build/, // npm run build
         /flutter\s+analyze/, // flutter analyze
-        /flutter\s+build\s+(apk|appbundle)/ // flutter build apk/appbundle
+        /flutter\s+build\s+(apk|appbundle)/, // flutter build apk/appbundle
+        /gmail_create_draft/, // gmail create draft
+        /firebase_config_check/, // firebase config check
+        /android_manifest_check/, // android manifest check
+        /play_store_readiness_audit/ // play store readiness audit
     ];
     // Regex patterns for low commands
     lowPatterns = [
@@ -75,6 +79,37 @@ export class SafetyEngine {
      */
     classifyCommand(command) {
         const trimmed = command.trim();
+        if (trimmed.includes('calendar_create_event')) {
+            if (trimmed.includes('attendees') && !trimmed.includes('attendees: ""') && !trimmed.includes('attendees: []')) {
+                return 'high'; // calendar event with attendees requires approval
+            }
+            return 'medium'; // calendar event without attendees can be medium risk
+        }
+        if (trimmed.includes('reminder_create')) {
+            return 'medium'; // personal reminder can be created after simple confirmation (medium risk)
+        }
+        if (trimmed.includes('calendar_list_today')) {
+            return 'low'; // read-only is low risk
+        }
+        if (trimmed.includes('message_create_draft') || trimmed.includes('call_prepare')) {
+            return 'medium'; // message draft creation and call preparation are medium risk
+        }
+        if (trimmed.includes('contact_lookup_placeholder')) {
+            return 'low'; // contact lookup is low risk
+        }
+        if (trimmed.includes('open_url') || trimmed.includes('open_google_play_console_placeholder') ||
+            trimmed.includes('open_firebase_console_placeholder') || trimmed.includes('open_github_repo_placeholder')) {
+            return 'medium'; // opening URLs and dashboards are medium risk
+        }
+        if (trimmed.includes('search_web_query') || trimmed.includes('open_project_dashboard')) {
+            return 'low'; // search web and local project dashboard is low risk
+        }
+        if (trimmed.includes('github_create_issue_draft')) {
+            return 'medium'; // creating issue drafts is medium risk
+        }
+        if (trimmed.includes('github_repo_status') || trimmed.includes('github_list_issues') || trimmed.includes('github_pr_summary')) {
+            return 'low'; // read-only github actions are low risk
+        }
         if (this.isBlocked(trimmed)) {
             return 'blocked';
         }
@@ -130,6 +165,8 @@ export class SafetyEngine {
      */
     sanitizeOutput(output) {
         let sanitized = output;
+        // Mask phone numbers fully (e.g. +919876543210 -> +9198765XXXXX)
+        sanitized = sanitized.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
         // Explicit checks for target replacement matching guidelines
         sanitized = sanitized.replace(/sk-[a-zA-Z0-9_-]+/g, '[REDACTED_OPENAI_API_KEY]');
         sanitized = sanitized.replace(/API_KEY\s*=\s*['"]?[a-zA-Z0-9_-]+['"]?/gi, 'API_KEY=[REDACTED]');

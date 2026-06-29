@@ -83,3 +83,75 @@ export declare class BuildToolsManager {
      */
     runBuildTool(toolName: string, command: string, projectPath: string, bypassApprovalOverride?: boolean): Promise<ToolResult>;
 }
+export declare class GmailToolsManager {
+    private storage;
+    private database;
+    private fs;
+    private path;
+    constructor(storageManager: StorageManager, databaseManager: DatabaseManager, options?: {
+        fs?: any;
+        path?: any;
+    });
+    registerAll(registry: ToolRegistry): void;
+    gmailCreateDraft(recipient: string, subject: string, body: string): Promise<ToolResult>;
+}
+export declare class CalendarToolsManager {
+    private storage;
+    private database;
+    private fs;
+    private path;
+    constructor(storageManager: StorageManager, databaseManager: DatabaseManager, options?: {
+        fs?: any;
+        path?: any;
+    });
+    registerAll(registry: ToolRegistry): void;
+    calendarCreateEvent(title: string, date: string, attendees?: string): Promise<ToolResult>;
+    calendarListToday(): Promise<ToolResult>;
+    reminderCreate(message: string, time: string): Promise<ToolResult>;
+}
+export declare class MessageCallToolsManager {
+    private storage;
+    private database;
+    private fs;
+    private path;
+    constructor(storageManager: StorageManager, databaseManager: DatabaseManager, options?: {
+        fs?: any;
+        path?: any;
+    });
+    registerAll(registry: ToolRegistry): void;
+    messageCreateDraft(recipient: string, message: string): Promise<ToolResult>;
+    callPrepare(recipient: string): Promise<ToolResult>;
+    contactLookupPlaceholder(name: string): Promise<ToolResult>;
+}
+export declare class BrowserToolsManager {
+    private storage;
+    private database;
+    private fs;
+    private path;
+    constructor(storageManager: StorageManager, databaseManager: DatabaseManager, options?: {
+        fs?: any;
+        path?: any;
+    });
+    registerAll(registry: ToolRegistry): void;
+    openUrl(url: string): Promise<ToolResult>;
+    searchWebQuery(query: string): Promise<ToolResult>;
+    openProjectDashboard(): Promise<ToolResult>;
+    openGooglePlayConsole(): Promise<ToolResult>;
+    openFirebaseConsole(): Promise<ToolResult>;
+    openGithubRepo(): Promise<ToolResult>;
+}
+export declare class GithubToolsManager {
+    private storage;
+    private database;
+    private fs;
+    private path;
+    constructor(storageManager: StorageManager, databaseManager: DatabaseManager, options?: {
+        fs?: any;
+        path?: any;
+    });
+    registerAll(registry: ToolRegistry): void;
+    githubRepoStatus(): Promise<ToolResult>;
+    githubListIssues(): Promise<ToolResult>;
+    githubCreateIssueDraft(title: string, body: string): Promise<ToolResult>;
+    githubPrSummary(): Promise<ToolResult>;
+}

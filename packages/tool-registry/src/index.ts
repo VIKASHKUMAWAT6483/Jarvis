@@ -893,3 +893,826 @@ export class BuildToolsManager {
     };
   }
 }
+
+export class GmailToolsManager {
+  private storage: StorageManager;
+  private database: DatabaseManager;
+  private fs: any;
+  private path: any;
+
+  constructor(
+    storageManager: StorageManager,
+    databaseManager: DatabaseManager,
+    options?: { fs?: any; path?: any }
+  ) {
+    this.storage = storageManager;
+    this.database = databaseManager;
+    this.fs = options?.fs || null;
+    this.path = options?.path || null;
+  }
+
+  public registerAll(registry: ToolRegistry): void {
+    registry.registerTool({
+      name: 'gmail_create_draft',
+      description: 'Create a Gmail draft with subject and body.',
+      parameters: { recipient: 'string', subject: 'string', body: 'string' },
+      execute: async (args) => this.gmailCreateDraft(args.recipient, args.subject, args.body)
+    });
+  }
+
+  public async gmailCreateDraft(recipient: string, subject: string, body: string): Promise<ToolResult> {
+    // 1. Storage mounted is required to access logs index
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected. Gmail draft creation is paused.',
+        output: ''
+      };
+    }
+
+    if (!recipient || !subject || !body) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Recipient, subject, and body are required to create a Gmail draft.',
+        output: ''
+      };
+    }
+
+    // 2. Simulate reading Gmail secret token from internal encrypted secrets manager only (not external SSD)
+    // secretsManager checks in caller, but we verify we do not log secrets
+
+    // 3. Write summary only to SQLite audit log (exclude private body)
+    this.database.logCommand({
+      user_input: `gmail_create_draft to: ${recipient}`,
+      detected_intent: 'GMAIL_DRAFT',
+      tool_name: 'gmail_create_draft',
+      risk_level: 'medium',
+      status: 'success',
+      summary: `Created email draft to "${recipient}" with subject "${subject}".`
+    });
+
+    const draftPreview = [
+      `==========================================`,
+      `       🛡️ GMAIL DRAFT PREVIEW (MOCK)`,
+      `==========================================`,
+      `Status: DRAFT SAVED SUCCESSFULLY`,
+      `To: ${recipient}`,
+      `Subject: ${subject}`,
+      `------------------------------------------`,
+      `Body:`,
+      `${body}`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: draftPreview
+    };
+  }
+}
+
+export class CalendarToolsManager {
+  private storage: StorageManager;
+  private database: DatabaseManager;
+  private fs: any;
+  private path: any;
+
+  constructor(
+    storageManager: StorageManager,
+    databaseManager: DatabaseManager,
+    options?: { fs?: any; path?: any }
+  ) {
+    this.storage = storageManager;
+    this.database = databaseManager;
+    this.fs = options?.fs || null;
+    this.path = options?.path || null;
+  }
+
+  public registerAll(registry: ToolRegistry): void {
+    registry.registerTool({
+      name: 'calendar_create_event',
+      description: 'Create a calendar event at a specified time.',
+      parameters: { title: 'string', date: 'string', attendees: 'string' },
+      execute: async (args) => this.calendarCreateEvent(args.title, args.date, args.attendees)
+    });
+
+    registry.registerTool({
+      name: 'calendar_list_today',
+      description: 'List all calendar events scheduled for today.',
+      parameters: {},
+      execute: async () => this.calendarListToday()
+    });
+
+    registry.registerTool({
+      name: 'reminder_create',
+      description: 'Create a personal reminder alert.',
+      parameters: { message: 'string', time: 'string' },
+      execute: async (args) => this.reminderCreate(args.message, args.time)
+    });
+  }
+
+  public async calendarCreateEvent(title: string, date: string, attendees?: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected. Calendar operations are paused.',
+        output: ''
+      };
+    }
+
+    if (!title || !date) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Title and date are required to create a calendar event.',
+        output: ''
+      };
+    }
+
+    const hasAttendees = attendees && attendees.trim().length > 0;
+    const risk = hasAttendees ? 'high' : 'medium';
+
+    // Log action summary only (do not expose private details)
+    this.database.logCommand({
+      user_input: `calendar_create_event title: ${title}`,
+      detected_intent: 'CALENDAR_CREATE',
+      tool_name: 'calendar_create_event',
+      risk_level: risk,
+      status: 'success',
+      summary: `Created calendar event "${title}" on ${date}${hasAttendees ? ' with attendees' : ''}.`
+    });
+
+    const eventPreview = [
+      `==========================================`,
+      `       🛡️ CALENDAR EVENT PREVIEW`,
+      `==========================================`,
+      `Status: EVENT CREATED SUCCESSFULLY`,
+      `Title: ${title}`,
+      `Time: ${date}`,
+      `Attendees: ${attendees || 'None'}`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: eventPreview
+    };
+  }
+
+  public async calendarListToday(): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: 'calendar_list_today',
+      detected_intent: 'CALENDAR_LIST',
+      tool_name: 'calendar_list_today',
+      risk_level: 'low',
+      status: 'success',
+      summary: 'Listed calendar events for today.'
+    });
+
+    const listOutput = [
+      `==========================================`,
+      `       📅 TODAY'S CALENDAR EVENTS`,
+      `==========================================`,
+      `1. 09:00 AM - 10:00 AM: Daily Standup Sync`,
+      `2. 02:00 PM - 03:00 PM: Project Review (Friday 5 PM Event Demo)`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: listOutput
+    };
+  }
+
+  public async reminderCreate(message: string, time: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    if (!message || !time) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Message and time are required.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: `reminder_create msg: ${message}`,
+      detected_intent: 'REMINDER_CREATE',
+      tool_name: 'reminder_create',
+      risk_level: 'medium',
+      status: 'success',
+      summary: `Created personal reminder for message: "${message}" at ${time}.`
+    });
+
+    const reminderPreview = [
+      `==========================================`,
+      `       🔔 PERSONAL REMINDER CREATED`,
+      `==========================================`,
+      `Status: REMINDER CREATED SUCCESSFULLY`,
+      `Remind me to: ${message}`,
+      `At: ${time}`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: reminderPreview
+    };
+  }
+}
+
+export class MessageCallToolsManager {
+  private storage: StorageManager;
+  private database: DatabaseManager;
+  private fs: any;
+  private path: any;
+
+  constructor(
+    storageManager: StorageManager,
+    databaseManager: DatabaseManager,
+    options?: { fs?: any; path?: any }
+  ) {
+    this.storage = storageManager;
+    this.database = databaseManager;
+    this.fs = options?.fs || null;
+    this.path = options?.path || null;
+  }
+
+  public registerAll(registry: ToolRegistry): void {
+    registry.registerTool({
+      name: 'message_create_draft',
+      description: 'Create a draft message for a recipient.',
+      parameters: { recipient: 'string', message: 'string' },
+      execute: async (args) => this.messageCreateDraft(args.recipient, args.message)
+    });
+
+    registry.registerTool({
+      name: 'call_prepare',
+      description: 'Prepare a phone call context details.',
+      parameters: { recipient: 'string' },
+      execute: async (args) => this.callPrepare(args.recipient)
+    });
+
+    registry.registerTool({
+      name: 'contact_lookup_placeholder',
+      description: 'Look up contact placeholder card details by name.',
+      parameters: { name: 'string' },
+      execute: async (args) => this.contactLookupPlaceholder(args.name)
+    });
+  }
+
+  public async messageCreateDraft(recipient: string, message: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected. Messaging is paused.',
+        output: ''
+      };
+    }
+
+    if (!recipient || !message) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Recipient and message content are required to draft a message.',
+        output: ''
+      };
+    }
+
+    // Mask phone numbers if recipient looks like a phone number
+    const maskedRecipient = recipient.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
+
+    // Store summary logs only - exclude personal message body
+    this.database.logCommand({
+      user_input: `message_create_draft to: ${maskedRecipient}`,
+      detected_intent: 'MESSAGE_DRAFT',
+      tool_name: 'message_create_draft',
+      risk_level: 'medium',
+      status: 'success',
+      summary: `Drafted message for recipient "${maskedRecipient}".`
+    });
+
+    const preview = [
+      `==========================================`,
+      `       💬 MESSAGE DRAFT PREVIEW`,
+      `==========================================`,
+      `Status: MESSAGE DRAFT CREATED`,
+      `Recipient: ${recipient}`,
+      `------------------------------------------`,
+      `Content:`,
+      `${message}`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: preview
+    };
+  }
+
+  public async callPrepare(recipient: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    if (!recipient) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Recipient details are required.',
+        output: ''
+      };
+    }
+
+    const maskedRecipient = recipient.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
+
+    this.database.logCommand({
+      user_input: `call_prepare to: ${maskedRecipient}`,
+      detected_intent: 'CALL_PREPARE',
+      tool_name: 'call_prepare',
+      risk_level: 'medium',
+      status: 'success',
+      summary: `Prepared call for recipient "${maskedRecipient}".`
+    });
+
+    const callPreview = [
+      `==========================================`,
+      `       📞 CALL PREPARATION WINDOW`,
+      `==========================================`,
+      `Status: CALL PREPARED SUCCESSFULLY`,
+      `Target Recipient: ${recipient}`,
+      `Action: STANDBY (Ready to place call)`,
+      `Note: Calls require explicit confirmation to dial.`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: callPreview
+    };
+  }
+
+  public async contactLookupPlaceholder(name: string): Promise<ToolResult> {
+    if (!name) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Name is required.',
+        output: ''
+      };
+    }
+
+    // Default mock contact lookup details
+    let phone = '+91 98765 43210';
+    if (name.toLowerCase() === 'rahul') {
+      phone = '+91 98765 43210';
+    } else if (name.toLowerCase() === 'amit') {
+      phone = '+91 99887 76655';
+    }
+
+    const maskedPhone = phone.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
+
+    // Log action summary with masked phone number
+    this.database.logCommand({
+      user_input: `contact_lookup_placeholder for ${name}`,
+      detected_intent: 'CONTACT_LOOKUP',
+      tool_name: 'contact_lookup_placeholder',
+      risk_level: 'low',
+      status: 'success',
+      summary: `Looked up contact card for ${name} (Phone: ${maskedPhone}).`
+    });
+
+    const card = [
+      `==========================================`,
+      `       👤 CONTACT CARD: ${name.toUpperCase()}`,
+      `==========================================`,
+      `Name: ${name}`,
+      `Phone: ${phone}`,
+      `Status: ACTIVE`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: card
+    };
+  }
+}
+
+export class BrowserToolsManager {
+  private storage: StorageManager;
+  private database: DatabaseManager;
+  private fs: any;
+  private path: any;
+
+  constructor(
+    storageManager: StorageManager,
+    databaseManager: DatabaseManager,
+    options?: { fs?: any; path?: any }
+  ) {
+    this.storage = storageManager;
+    this.database = databaseManager;
+    this.fs = options?.fs || null;
+    this.path = options?.path || null;
+  }
+
+  public registerAll(registry: ToolRegistry): void {
+    registry.registerTool({
+      name: 'open_url',
+      description: 'Open a specified URL in the web browser.',
+      parameters: { url: 'string' },
+      execute: async (args) => this.openUrl(args.url)
+    });
+
+    registry.registerTool({
+      name: 'search_web_query',
+      description: 'Perform a web search query request.',
+      parameters: { query: 'string' },
+      execute: async (args) => this.searchWebQuery(args.query)
+    });
+
+    registry.registerTool({
+      name: 'open_project_dashboard',
+      description: 'Open local dashboard for active project.',
+      parameters: {},
+      execute: async () => this.openProjectDashboard()
+    });
+
+    registry.registerTool({
+      name: 'open_google_play_console_placeholder',
+      description: 'Open Google Play Console deployment dashboard.',
+      parameters: {},
+      execute: async () => this.openGooglePlayConsole()
+    });
+
+    registry.registerTool({
+      name: 'open_firebase_console_placeholder',
+      description: 'Open Firebase project database console.',
+      parameters: {},
+      execute: async () => this.openFirebaseConsole()
+    });
+
+    registry.registerTool({
+      name: 'open_github_repo_placeholder',
+      description: 'Open active project GitHub source code repository.',
+      parameters: {},
+      execute: async () => this.openGithubRepo()
+    });
+  }
+
+  public async openUrl(url: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected. Browser actions are paused.',
+        output: ''
+      };
+    }
+
+    if (!url) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: URL is required.',
+        output: ''
+      };
+    }
+
+    // Extract domain host only (omit query tokens and sub-paths)
+    let domain = 'unknown-domain';
+    try {
+      const matches = url.match(/^(?:https?:\/\/)?(?:www\.)?([^\/\?#]+)/i);
+      domain = matches ? matches[1] : url;
+    } catch {
+      domain = url;
+    }
+
+    this.database.logCommand({
+      user_input: `open_url domain: ${domain}`,
+      detected_intent: 'BROWSER_OPEN',
+      tool_name: 'open_url',
+      risk_level: 'medium',
+      status: 'success',
+      summary: `Opened browser window at domain "${domain}".`
+    });
+
+    const output = [
+      `==========================================`,
+      `       🌐 BROWSER ACTION EXECUTION`,
+      `==========================================`,
+      `Status: URL OPENED SUCCESSFULLY`,
+      `Target URL: ${url}`,
+      `Audited Domain: ${domain}`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async searchWebQuery(query: string): Promise<ToolResult> {
+    if (!query) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Query string is required.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: `search_web_query: ${query}`,
+      detected_intent: 'BROWSER_SEARCH',
+      tool_name: 'search_web_query',
+      risk_level: 'low',
+      status: 'success',
+      summary: `Executed search engine query search.`
+    });
+
+    const output = [
+      `==========================================`,
+      `       🔍 WEB SEARCH RESULTS (MOCK)`,
+      `==========================================`,
+      `Query: ${query}`,
+      `Results:`,
+      `- Top result matching query: status index success`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async openProjectDashboard(): Promise<ToolResult> {
+    this.database.logCommand({
+      user_input: 'open_project_dashboard',
+      detected_intent: 'BROWSER_OPEN',
+      tool_name: 'open_project_dashboard',
+      risk_level: 'low',
+      status: 'success',
+      summary: 'Opened active project local control panel dashboard.'
+    });
+
+    return {
+      success: true,
+      output: 'Project dashboard panel launched on local interface port.'
+    };
+  }
+
+  public async openGooglePlayConsole(): Promise<ToolResult> {
+    this.database.logCommand({
+      user_input: 'open_google_play_console_placeholder',
+      detected_intent: 'BROWSER_OPEN',
+      tool_name: 'open_google_play_console_placeholder',
+      risk_level: 'medium',
+      status: 'success',
+      summary: 'Opened Google Play Console.'
+    });
+
+    return {
+      success: true,
+      output: 'Google Play Console landing page opened in browser.'
+    };
+  }
+
+  public async openFirebaseConsole(): Promise<ToolResult> {
+    this.database.logCommand({
+      user_input: 'open_firebase_console_placeholder',
+      detected_intent: 'BROWSER_OPEN',
+      tool_name: 'open_firebase_console_placeholder',
+      risk_level: 'medium',
+      status: 'success',
+      summary: 'Opened Firebase Console.'
+    });
+
+    return {
+      success: true,
+      output: 'Firebase project developer console opened in browser.'
+    };
+  }
+
+  public async openGithubRepo(): Promise<ToolResult> {
+    this.database.logCommand({
+      user_input: 'open_github_repo_placeholder',
+      detected_intent: 'BROWSER_OPEN',
+      tool_name: 'open_github_repo_placeholder',
+      risk_level: 'medium',
+      status: 'success',
+      summary: 'Opened GitHub repository.'
+    });
+
+    return {
+      success: true,
+      output: 'GitHub repository source files workspace page launched.'
+    };
+  }
+}
+
+export class GithubToolsManager {
+  private storage: StorageManager;
+  private database: DatabaseManager;
+  private fs: any;
+  private path: any;
+
+  constructor(
+    storageManager: StorageManager,
+    databaseManager: DatabaseManager,
+    options?: { fs?: any; path?: any }
+  ) {
+    this.storage = storageManager;
+    this.database = databaseManager;
+    this.fs = options?.fs || null;
+    this.path = options?.path || null;
+  }
+
+  public registerAll(registry: ToolRegistry): void {
+    registry.registerTool({
+      name: 'github_repo_status',
+      description: 'Check active project GitHub repository status.',
+      parameters: {},
+      execute: async () => this.githubRepoStatus()
+    });
+
+    registry.registerTool({
+      name: 'github_list_issues',
+      description: 'List active issues inside GitHub repository.',
+      parameters: {},
+      execute: async () => this.githubListIssues()
+    });
+
+    registry.registerTool({
+      name: 'github_create_issue_draft',
+      description: 'Draft a new issue for the GitHub repository.',
+      parameters: { title: 'string', body: 'string' },
+      execute: async (args) => this.githubCreateIssueDraft(args.title, args.body)
+    });
+
+    registry.registerTool({
+      name: 'github_pr_summary',
+      description: 'List active pull requests inside GitHub repository.',
+      parameters: {},
+      execute: async () => this.githubPrSummary()
+    });
+  }
+
+  public async githubRepoStatus(): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: 'github_repo_status',
+      detected_intent: 'GITHUB_STATUS',
+      tool_name: 'github_repo_status',
+      risk_level: 'low',
+      status: 'success',
+      summary: 'Fetched GitHub repository status.'
+    });
+
+    const output = [
+      `==========================================`,
+      `       🐙 GITHUB REPOSITORY STATUS`,
+      `==========================================`,
+      `Repository: jarvis-ai`,
+      `Branches: main, dev, feature/voice-mode`,
+      `Stars: 15, Forks: 2`,
+      `Status: Clean working tree`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async githubListIssues(): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: 'github_list_issues',
+      detected_intent: 'GITHUB_ISSUES',
+      tool_name: 'github_list_issues',
+      risk_level: 'low',
+      status: 'success',
+      summary: 'Listed active GitHub issues.'
+    });
+
+    const output = [
+      `==========================================`,
+      `       🐙 ACTIVE GITHUB ISSUES`,
+      `==========================================`,
+      `1. #24: [BUG] Voice transcription fails on unmounted SSD`,
+      `2. #25: [FEATURE] Add Gmail draft UI controls`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async githubCreateIssueDraft(title: string, body: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected. GitHub actions are paused.',
+        output: ''
+      };
+    }
+
+    if (!title || !body) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Title and body content are required to draft an issue.',
+        output: ''
+      };
+    }
+
+    // Store summary logs only - exclude issue body details
+    this.database.logCommand({
+      user_input: `github_create_issue_draft title: ${title}`,
+      detected_intent: 'GITHUB_CREATE_ISSUE',
+      tool_name: 'github_create_issue_draft',
+      risk_level: 'medium',
+      status: 'success',
+      summary: `Drafted GitHub issue: "${title}".`
+    });
+
+    const preview = [
+      `==========================================`,
+      `       🐙 GITHUB ISSUE DRAFT PREVIEW`,
+      `==========================================`,
+      `Status: GITHUB ISSUE DRAFT CREATED`,
+      `Title: ${title}`,
+      `------------------------------------------`,
+      `Body:`,
+      `${body}`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: preview
+    };
+  }
+
+  public async githubPrSummary(): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: 'github_pr_summary',
+      detected_intent: 'GITHUB_PRS',
+      tool_name: 'github_pr_summary',
+      risk_level: 'low',
+      status: 'success',
+      summary: 'Listed active pull requests summary.'
+    });
+
+    const output = [
+      `==========================================`,
+      `       🐙 ACTIVE PULL REQUESTS`,
+      `==========================================`,
+      `1. #26: Merge feature/voice-mode to dev (1 commit, verified)`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+}

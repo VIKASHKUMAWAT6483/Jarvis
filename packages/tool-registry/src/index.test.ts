@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { StorageManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, TerminalExecutor } from './index.js';
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor } from './index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -378,6 +378,357 @@ describe('ToolRegistry FileTools Tests', () => {
     const blockedReadiness = await btDisconnected.playStoreReadinessAudit(projPath);
     assert.equal(blockedReadiness.success, false);
     assert.match(blockedReadiness.error || '', /External SSD is not mounted/);
+
+    cleanupSandbox();
+  });
+
+  test('7. Gmail Draft Tools Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const gmail = new GmailToolsManager(storage, db, { fs, path });
+
+    // Test successful draft creation
+    const res = await gmail.gmailCreateDraft('client@example.com', 'Testing Update', 'App testing will be completed tomorrow.');
+    assert.equal(res.success, true);
+    assert.match(res.output, /Status: DRAFT SAVED SUCCESSFULLY/i);
+    assert.match(res.output, /To: client@example.com/);
+    assert.match(res.output, /Subject: Testing Update/);
+    assert.match(res.output, /App testing will be completed tomorrow\./);
+
+    // Verify draft body is not saved in SQLite logs (only summary)
+    const logs = db.getCommands();
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].tool_name, 'gmail_create_draft');
+    assert.equal(logs[0].summary, 'Created email draft to "client@example.com" with subject "Testing Update".');
+    // Ensure body itself is not in summary or user_input
+    assert.ok(!logs[0].summary.includes('App testing will be completed'));
+    assert.ok(!logs[0].user_input.includes('App testing will be completed'));
+
+    // Test unmounted SSD checks
+    const storageDisconnected = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs: {
+        ...fs,
+        existsSync: (p: string) => {
+          if (p.includes('HP P500') || p.includes('mock-external')) return false;
+          return fs.existsSync(p);
+        }
+      },
+      path,
+      os
+    });
+    const gmailDisconnected = new GmailToolsManager(storageDisconnected, db, { fs, path });
+    const blockedRes = await gmailDisconnected.gmailCreateDraft('client@example.com', 'Testing Update', 'App testing will be completed tomorrow.');
+    assert.equal(blockedRes.success, false);
+    assert.match(blockedRes.error || '', /External SSD is disconnected/);
+
+    cleanupSandbox();
+  });
+
+  test('8. Calendar & Reminder Tools Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const safety = new SafetyEngine();
+    const calendar = new CalendarToolsManager(storage, db, { fs, path });
+
+    // Test 1: Safety engine classifications
+    assert.equal(safety.classifyCommand('calendar_create_event title: "Sync"'), 'medium');
+    assert.equal(safety.classifyCommand('calendar_create_event title: "Sync" attendees: "a@b.com"'), 'high');
+    assert.equal(safety.classifyCommand('reminder_create msg: "Alert"'), 'medium');
+    assert.equal(safety.classifyCommand('calendar_list_today'), 'low');
+
+    // Test 2: Successful reminder creation (medium risk)
+    const reminderRes = await calendar.reminderCreate('app testing remind karna', 'Tomorrow 8:00 AM');
+    assert.equal(reminderRes.success, true);
+    assert.match(reminderRes.output, /STATUS: REMINDER CREATED SUCCESSFULLY/i);
+    assert.match(reminderRes.output, /Remind me to: app testing remind karna/);
+    assert.match(reminderRes.output, /At: Tomorrow 8:00 AM/);
+
+    // Test 3: Successful calendar event creation without attendees (medium risk)
+    const eventRes = await calendar.calendarCreateEvent('Project Review', 'Friday 5:00 PM');
+    assert.equal(eventRes.success, true);
+    assert.match(eventRes.output, /STATUS: EVENT CREATED SUCCESSFULLY/i);
+    assert.match(eventRes.output, /Title: Project Review/);
+    assert.match(eventRes.output, /Time: Friday 5:00 PM/);
+
+    // Test 4: Successful calendar event creation with attendees (high risk)
+    const eventWithAttendeesRes = await calendar.calendarCreateEvent('Project Review', 'Friday 5:00 PM', 'client@example.com');
+    assert.equal(eventWithAttendeesRes.success, true);
+    assert.match(eventWithAttendeesRes.output, /Attendees: client@example.com/);
+
+    // Test 5: List today's events (low risk)
+    const listRes = await calendar.calendarListToday();
+    assert.equal(listRes.success, true);
+    assert.match(listRes.output, /TODAY'S CALENDAR EVENTS/i);
+
+    // Test 6: Verify private details are excluded from logs
+    const logs = db.getCommands();
+    // Verify first log: reminder
+    assert.equal(logs[0].tool_name, 'reminder_create');
+    assert.equal(logs[0].summary, 'Created personal reminder for message: "app testing remind karna" at Tomorrow 8:00 AM.');
+    
+    // Verify second log: event without attendees
+    assert.equal(logs[1].tool_name, 'calendar_create_event');
+    assert.equal(logs[1].summary, 'Created calendar event "Project Review" on Friday 5:00 PM.');
+
+    // Verify third log: event with attendees
+    assert.equal(logs[2].tool_name, 'calendar_create_event');
+    assert.equal(logs[2].summary, 'Created calendar event "Project Review" on Friday 5:00 PM with attendees.');
+    // Ensure actual attendees email 'client@example.com' is not present in summary or user_input
+    assert.ok(!logs[2].summary.includes('client@example.com'));
+    assert.ok(!logs[2].user_input.includes('client@example.com'));
+
+    // Test 7: Handles external SSD disconnected error logic
+    const storageDisconnected = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs: {
+        ...fs,
+        existsSync: (p: string) => {
+          if (p.includes('HP P500') || p.includes('mock-external')) return false;
+          return fs.existsSync(p);
+        }
+      },
+      path,
+      os
+    });
+    const calendarDisconnected = new CalendarToolsManager(storageDisconnected, db, { fs, path });
+    
+    const blockedEvent = await calendarDisconnected.calendarCreateEvent('Sync', 'Friday 5 PM');
+    assert.equal(blockedEvent.success, false);
+    assert.match(blockedEvent.error || '', /External SSD is disconnected/);
+
+    const blockedList = await calendarDisconnected.calendarListToday();
+    assert.equal(blockedList.success, false);
+    assert.match(blockedList.error || '', /External SSD is disconnected/);
+
+    cleanupSandbox();
+  });
+
+  test('9. Message & Call Tools Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const safety = new SafetyEngine();
+    const msgCall = new MessageCallToolsManager(storage, db, { fs, path });
+
+    // Test 1: Safety Engine Classifications
+    assert.equal(safety.classifyCommand('message_create_draft recipient: "Rahul"'), 'medium');
+    assert.equal(safety.classifyCommand('call_prepare recipient: "Rahul"'), 'medium');
+    assert.equal(safety.classifyCommand('contact_lookup_placeholder name: "Rahul"'), 'low');
+
+    // Test 2: Successful message draft creation
+    const draftRes = await msgCall.messageCreateDraft('Rahul', 'main 30 minute me call karunga.');
+    assert.equal(draftRes.success, true);
+    assert.match(draftRes.output, /Status: MESSAGE DRAFT CREATED/i);
+    assert.match(draftRes.output, /Recipient: Rahul/);
+    assert.match(draftRes.output, /main 30 minute me call karunga\./);
+
+    // Test 3: Successful call preparation
+    const callRes = await msgCall.callPrepare('+919876543210');
+    assert.equal(callRes.success, true);
+    assert.match(callRes.output, /Status: CALL PREPARED SUCCESSFULLY/i);
+    assert.match(callRes.output, /Target Recipient: \+919876543210/);
+
+    // Test 4: Contact lookup (returns phone and masks inside log)
+    const lookupRes = await msgCall.contactLookupPlaceholder('Rahul');
+    assert.equal(lookupRes.success, true);
+    assert.match(lookupRes.output, /Phone: \+91 98765 43210/);
+
+    // Test 5: Verify phone numbers are masked in SQLite logs
+    const logs = db.getCommands();
+    // Verify message draft log (excludes message content body)
+    assert.equal(logs[0].tool_name, 'message_create_draft');
+    assert.equal(logs[0].summary, 'Drafted message for recipient "Rahul".');
+    assert.ok(!logs[0].summary.includes('main 30 minute me call'));
+    assert.ok(!logs[0].user_input.includes('main 30 minute me call'));
+
+    // Verify call preparation log (masks phone number)
+    assert.equal(logs[1].tool_name, 'call_prepare');
+    assert.equal(logs[1].summary, 'Prepared call for recipient "+91987654XXXXX".');
+    assert.ok(!logs[1].summary.includes('43210'));
+
+    // Verify contact lookup log (masks phone number)
+    assert.equal(logs[2].tool_name, 'contact_lookup_placeholder');
+    assert.equal(logs[2].summary, 'Looked up contact card for Rahul (Phone: +91 98765XXXXX).');
+    assert.ok(!logs[2].summary.includes('43210'));
+
+    // Test 6: Verify output sanitization regex masks phone numbers
+    const rawOutput = 'Calling recipient at +919876543210 for testing.';
+    const sanitized = safety.sanitizeOutput(rawOutput);
+    assert.equal(sanitized, 'Calling recipient at +91987654XXXXX for testing.');
+
+    cleanupSandbox();
+  });
+
+  test('10. Browser Automation Tools Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const safety = new SafetyEngine();
+    const browser = new BrowserToolsManager(storage, db, { fs, path });
+
+    // Test 1: Safety Engine Classifications
+    assert.equal(safety.classifyCommand('open_url url: "https://github.com"'), 'medium');
+    assert.equal(safety.classifyCommand('search_web_query query: "Jarvis"'), 'low');
+    assert.equal(safety.classifyCommand('open_project_dashboard'), 'low');
+    assert.equal(safety.classifyCommand('open_google_play_console_placeholder'), 'medium');
+
+    // Test 2: Successful open_url with query token masking check
+    const urlRes = await browser.openUrl('https://github.com/myorg/myrepo?token=secrettoken123');
+    assert.equal(urlRes.success, true);
+    assert.match(urlRes.output, /Status: URL OPENED SUCCESSFULLY/i);
+    assert.match(urlRes.output, /Audited Domain: github\.com/);
+
+    // Test 3: Verify logs only store domain and not query params
+    const logs = db.getCommands();
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].tool_name, 'open_url');
+    assert.equal(logs[0].summary, 'Opened browser window at domain "github.com".');
+    assert.ok(!logs[0].summary.includes('secrettoken123'));
+    assert.ok(!logs[0].user_input.includes('secrettoken123'));
+
+    // Test 4: Open Firebase Console
+    const firebaseRes = await browser.openFirebaseConsole();
+    assert.equal(firebaseRes.success, true);
+    assert.match(firebaseRes.output, /Firebase project developer console/);
+
+    // Test 5: Open GitHub repository
+    const githubRes = await browser.openGithubRepo();
+    assert.equal(githubRes.success, true);
+    assert.match(githubRes.output, /GitHub repository source files/);
+
+    cleanupSandbox();
+  });
+
+  test('11. GitHub Tools Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const safety = new SafetyEngine();
+    const gh = new GithubToolsManager(storage, db, { fs, path });
+
+    // Test 1: Safety Engine Classifications
+    assert.equal(safety.classifyCommand('github_repo_status'), 'low');
+    assert.equal(safety.classifyCommand('github_list_issues'), 'low');
+    assert.equal(safety.classifyCommand('github_create_issue_draft title: "bug"'), 'medium');
+    assert.equal(safety.classifyCommand('github_pr_summary'), 'low');
+
+    // Test 2: Successful github_create_issue_draft with preview
+    const issueRes = await gh.githubCreateIssueDraft('Bug: SSD error', 'Transcription fails when SSD missing.');
+    assert.equal(issueRes.success, true);
+    assert.match(issueRes.output, /Status: GITHUB ISSUE DRAFT CREATED/i);
+    assert.match(issueRes.output, /Title: Bug: SSD error/);
+    assert.match(issueRes.output, /Transcription fails when SSD missing\./);
+
+    // Test 3: Verify logs store only action summaries and omit issue details body
+    const logs = db.getCommands();
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].tool_name, 'github_create_issue_draft');
+    assert.equal(logs[0].summary, 'Drafted GitHub issue: "Bug: SSD error".');
+    assert.ok(!logs[0].summary.includes('Transcription fails'));
+    assert.ok(!logs[0].user_input.includes('Transcription fails'));
+
+    // Test 4: Fetch github_repo_status
+    const statusRes = await gh.githubRepoStatus();
+    assert.equal(statusRes.success, true);
+    assert.match(statusRes.output, /Repository: jarvis-ai/);
+    assert.match(statusRes.output, /Status: Clean working tree/);
+
+    // Test 5: List issues
+    const listRes = await gh.githubListIssues();
+    assert.equal(listRes.success, true);
+    assert.match(listRes.output, /Active GitHub Issues/i);
 
     cleanupSandbox();
   });

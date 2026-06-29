@@ -1,0 +1,29 @@
+{
+  "name": "jarvis-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Professional Desktop AI Assistant Jarvis",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:desktop": "npm run tauri dev --workspace=desktop",
+    "build:desktop": "npm run tauri build --workspace=desktop",
+    "build:packages": "tsc -b",
+    "test:storage": "tsx --test packages/storage-manager/src/index.test.ts",
+    "test:database": "tsx --test packages/database-manager/src/index.test.ts",
+    "test:project": "tsx --test packages/project-manager/src/index.test.ts",
+    "test:tools": "tsx --test packages/tool-registry/src/index.test.ts",
+    "test:safety": "tsx --test packages/safety-engine/src/index.test.ts",
+    "test:agent": "tsx --test packages/agent-core/src/terminal-executor.test.ts packages/agent-core/src/index.test.ts",
+    "test:voice": "tsx --test packages/voice-service/src/index.test.ts",
+    "test:all": "npm run test:storage && npm run test:database && npm run test:project && npm run test:tools && npm run test:safety && npm run test:agent && npm run test:voice",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "tsx": "^4.22.4",
+    "typescript": "^5.0.0"
+  }
+}

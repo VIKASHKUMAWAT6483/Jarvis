@@ -1,0 +1,22 @@
+{
+  "name": "@jarvis/agent-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@jarvis/shared-types": "*",
+    "@jarvis/storage-manager": "*",
+    "@jarvis/database-manager": "*",
+    "@jarvis/safety-engine": "*",
+    "@jarvis/tool-registry": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
