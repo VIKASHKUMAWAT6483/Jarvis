@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+/dist
+/target
+
+# Env & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.json
+
+# Databases
+*.sqlite
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Jarvis Runtime & Heavy Directories (as per Storage Policy)
+runtime/
+logs/
+audio-cache/
+builds/
+reports/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# IDE Files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
