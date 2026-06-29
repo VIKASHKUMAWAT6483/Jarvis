@@ -1,6 +1,8 @@
 # Jarvis Desktop AI Assistant
 
-Jarvis is a professional Mac desktop AI assistant structured as a monorepo containing a Tauri desktop app and local TypeScript modules.
+**Version**: 1.0.0 · **Platform**: macOS · **Stack**: Tauri + React + TypeScript
+
+Jarvis is a professional Mac desktop AI assistant designed for Indian solo developers. It provides push-to-talk voice control, safe developer tool automation, Gmail/Calendar draft management, and GitHub integration — all while keeping heavy data on an external SSD and secrets encrypted in macOS Keychain.
 
 ---
 
@@ -9,109 +11,100 @@ Jarvis is a professional Mac desktop AI assistant structured as a monorepo conta
 ```text
 jarvis-ai/
 ├── apps/
-│   └── desktop/           # Tauri + React + TypeScript Desktop Application
+│   └── desktop/             # Tauri + React + TypeScript Desktop App
 ├── packages/
-│   ├── shared-types/      # Common interfaces, config definitions, and structures
-│   ├── storage-manager/   # SSD segregation, mount verifications, path routing
-│   ├── safety-engine/     # Secret leak scanners, prompt filtering, safety rules
-│   ├── tool-registry/     # Custom function definitions & tool registering agent system
-│   ├── agent-core/        # Central core agent loop & processing cycle
-│   └── voice-service/     # TTS/STT cache managers and speech services
-├── docs/                  # System design manuals and architectural specs
-├── scripts/               # Helper maintenance and setup scripts
-├── .env.example           # Local environment template (configs & paths)
-├── .gitignore             # Strict exclusion lists
-└── README.md              # Project instructions and startup guide
+│   ├── shared-types/        # Common interfaces and config definitions
+│   ├── storage-manager/     # SSD segregation, mount checks, path routing
+│   ├── database-manager/    # SQLite audit logging and command history
+│   ├── project-manager/     # Workspace profile management
+│   ├── safety-engine/       # Command classification, secret scanning, risk gates
+│   ├── tool-registry/       # Tool definitions, managers (Git, Build, Gmail, etc.)
+│   ├── agent-core/          # Central intent detection and tool dispatch
+│   └── voice-service/       # Push-to-talk STT/TTS and audio cache management
+├── docs/                    # Documentation (you are here)
+├── scripts/                 # Build, test, backup, and migration scripts
+├── .env.example             # Environment template (never commit real values)
+├── .gitignore               # Strict exclusion rules
+└── README.md                # This file
 ```
 
 ---
 
-## 💾 Storage & Security Policy
-
-Jarvis operates under a strict storage separation protocol to conserve internal Mac SSD space and prevent credential leakage.
-
-* **Internal SSD (`~/Library/Application Support/Jarvis`)**: Stores local configurations, small state parameters, and secure keys in the macOS Keychain.
-* **External SSD (`/Volumes/HP P500/Jarvis`)**: Stores all heavy data (working workspaces, builds, logs, and media caches).
-
-> [!WARNING]
-> **No plaintext credentials may ever be committed to git or stored on the external SSD.**
-
-For the full storage matrices and security guidelines, read the [Jarvis Storage Policy](file:///Users/vikashkumar/Library/Application%20Support/Jarvis/STORAGE_POLICY.md).
-
----
-
-## ⚙️ Local Setup Steps
-
-Follow these steps to initialize your local development environment:
+## 🚀 Quick Start
 
 ### Prerequisites
-* **macOS** (v12+ recommended)
-* **Node.js** (v18+ recommended)
-* **Rust & Cargo** (Required to compile the Tauri native binaries):
-  ```bash
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  ```
+- **Node.js** v20+ and **npm**
+- **Rust** toolchain (for Tauri builds): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **External SSD** (HP P500) mounted at `/Volumes/HP P500/`
 
-### 1. External SSD Verification
-Ensure your external SSD is connected and mounted at `/Volumes/HP P500`. Verify that the directory exists:
+### Install & Run
 ```bash
-ls -la "/Volumes/HP P500/Jarvis"
+# Install all workspace dependencies
+npm run install:all
+
+# Start desktop development server
+npm run dev --workspace=desktop
+
+# Production build
+npm run build --workspace=desktop
 ```
 
-### 2. Environment Variables Configuration
-Copy the environment template and define your configuration:
-```bash
-cp .env.example .env
-```
-Open `.env` and fill in any required development environment parameters.
-
-### 3. Install Dependencies
-Run npm installer from the root workspace folder to fetch and link monorepo packages:
-```bash
-npm install
-```
-
-### 4. Run Development Server
-To launch the desktop client in development mode with hot reloading:
-```bash
-npm run dev:desktop
-```
-This builds packages, starts the Vite frontend dev server, and compiles the Tauri native window wrappers.
-
-### 5. Build Distribution Bundles
-To package the app for production:
-```bash
-npm run build:packages
-npm run build:desktop
-```
-The compiled binaries will be outputted under the external builds path at `/Volumes/HP P500/Jarvis/04-builds/`.
+### Keyboard Shortcuts
+| Shortcut | Action |
+| :--- | :--- |
+| `Cmd + Shift + J` | Toggle push-to-talk voice mode |
 
 ---
 
-## 💾 How to Run Jarvis from External SSD
+## 💾 Storage Policy
 
-1. **Connect the SSD**: Connect the external drive containing `/Volumes/HP P500/Jarvis` to your USB port.
-2. **Mount Validation**: Verify the drive mounts successfully and is writable.
-3. **Execute Jarvis**: Launch the compiled app from the SSD's builds folder.
-   - If the drive is connected, Jarvis reads configurations, databases, and logs directly from `/Volumes/HP P500/Jarvis/`.
-   - If disconnected, Jarvis starts in safe fallback mode (write actions paused) to prevent write overload on the internal Mac SSD.
+Jarvis enforces strict storage separation:
 
-## ⏏️ How to Safely Eject External SSD
+| Location | Purpose |
+| :--- | :--- |
+| **Internal SSD** (`~/Library/Application Support/Jarvis`) | Small configs, encrypted secrets (Keychain) |
+| **External SSD** (`/Volumes/HP P500/Jarvis/`) | Source code, builds, logs, audio cache, database, backups |
 
-To prevent database corruption or logs data loss, follow these ejection steps:
-1. **Close Jarvis**: Exit the Jarvis Desktop App completely (`Cmd + Q`).
-2. **Stop running tasks**: Ensure no active terminal execution tasks or background builds are running.
-3. **Safely Eject volume**: In Finder, click the Eject (⏏️) icon next to the `HP P500` volume, or execute:
-   ```bash
-   diskutil eject "/Volumes/HP P500"
-   ```
+> [!WARNING]
+> No plaintext credentials may ever be committed to Git or stored on the external SSD.
 
-## 📦 How to Migrate to Another Mac
+See [STORAGE_POLICY.md](docs/STORAGE_POLICY.md) for full details.
 
-To transfer your Jarvis profile to another Mac:
-1. Connect the external SSD to the new Mac.
-2. Clone your private repository or copy the code files to `/Volumes/HP P500/Jarvis/01-source-code/jarvis-ai`.
-3. Open the Jarvis App, go to **Settings > Backup**, and restore your latest backup folder from `/Volumes/HP P500/Jarvis/10-backups/`.
-4. Enter your OpenAI API key in **Settings > Secrets** to encrypt and save it in the new machine's local configuration directory.
-5. Grant necessary permissions (Accessibility, Full Disk Access) to the terminal executor.
-   - For step-by-step instructions, read the [New Mac Setup Manual](file:///Volumes/HP%20P500/Jarvis/01-source-code/jarvis-ai/SETUP_NEW_MAC.md).
+---
+
+## 🛡️ Safety Engine
+
+All commands pass through the Safety Engine before execution:
+
+| Risk Level | Behavior | Examples |
+| :--- | :--- | :--- |
+| **Blocked** | Denied immediately | `rm -rf /`, `git push --force`, `npm publish` |
+| **Critical** | Requires typed "CONFIRM" | `rm`, `drop database`, App Store submissions |
+| **High** | Requires click approval | `git commit`, `git push`, `firebase deploy` |
+| **Medium** | Requires click approval | `npm run build`, `flutter analyze`, Gmail drafts |
+| **Low** | Executes immediately | `git status`, `ls`, `node --version` |
+
+See [SAFETY_RULES.md](docs/SAFETY_RULES.md) for complete rules.
+
+---
+
+## 📚 Documentation Index
+
+| Document | Description |
+| :--- | :--- |
+| [STORAGE_POLICY.md](docs/STORAGE_POLICY.md) | Storage separation rules and SSD mount policies |
+| [SETUP_NEW_MAC.md](docs/SETUP_NEW_MAC.md) | Step-by-step restore guide for a new Mac |
+| [SAFETY_RULES.md](docs/SAFETY_RULES.md) | Command classification and approval rules |
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | How to use Jarvis (voice, chat, dashboard) |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) | Features intentionally out of scope |
+| [COMMAND_EXAMPLES.md](docs/COMMAND_EXAMPLES.md) | Example commands in English and Hinglish |
+
+---
+
+## 🔗 Links
+
+- **GitHub**: [VIKASHKUMAWAT6483/Jarvis](https://github.com/VIKASHKUMAWAT6483/Jarvis)
+- **Release Tag**: `v1.0.0`
+- **Reports**: `/Volumes/HP P500/Jarvis/05-reports/`
+- **Backups**: `/Volumes/HP P500/Jarvis/10-backups/v1.0-final/`
