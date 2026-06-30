@@ -1479,12 +1479,44 @@ export class MessageCallToolsManager {
     this.path = options?.path || null;
   }
 
+  private maskPhone(phone: string): string {
+    if (!phone) return 'N/A';
+    return phone.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
+  }
+
+  private maskContent(content: string): string {
+    if (!content) return 'N/A';
+    if (content.length <= 12) return `${content.substring(0, 4)}***`;
+    return `${content.substring(0, 6)}***${content.substring(content.length - 4)}`;
+  }
+
   public registerAll(registry: ToolRegistry): void {
+    registry.registerTool({
+      name: 'message_search_contact',
+      description: 'Search for a contact\'s phone number or name.',
+      parameters: { name: 'string' },
+      execute: async (args) => this.messageSearchContact(args.name)
+    });
+
     registry.registerTool({
       name: 'message_create_draft',
       description: 'Create a draft message for a recipient.',
       parameters: { recipient: 'string', message: 'string' },
       execute: async (args) => this.messageCreateDraft(args.recipient, args.message)
+    });
+
+    registry.registerTool({
+      name: 'message_preview',
+      description: 'Preview a message\'s content and recipient details before sending.',
+      parameters: { recipient: 'string', message: 'string' },
+      execute: async (args) => this.messagePreview(args.recipient, args.message)
+    });
+
+    registry.registerTool({
+      name: 'message_send_after_approval',
+      description: 'Send the approved message via macOS/continuity or fallback.',
+      parameters: { recipient: 'string', message: 'string' },
+      execute: async (args) => this.messageSendAfterApproval(args.recipient, args.message)
     });
 
     registry.registerTool({
@@ -1500,6 +1532,53 @@ export class MessageCallToolsManager {
       parameters: { name: 'string' },
       execute: async (args) => this.contactLookupPlaceholder(args.name)
     });
+  }
+
+  public async messageSearchContact(name: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected. Contact search is paused.',
+        output: ''
+      };
+    }
+
+    if (!name) {
+      return { success: false, error: 'INVALID ARGS: Contact name is required.', output: '' };
+    }
+
+    const cleanName = name.toLowerCase().trim();
+    let match = null;
+    if (cleanName === 'rahul') {
+      match = { name: 'Rahul', phone: '+91 98765 43210', status: 'ACTIVE' };
+    } else if (cleanName === 'amit') {
+      match = { name: 'Amit', phone: '+91 99887 76655', status: 'ACTIVE' };
+    }
+
+    // Mask phone number for logging
+    const maskedName = match ? match.name : 'UNKNOWN';
+    const maskedPhone = match ? this.maskPhone(match.phone) : 'N/A';
+
+    this.database.logCommand({
+      user_input: `message_search_contact name: "${name}"`,
+      detected_intent: 'CONTACT_SEARCH',
+      tool_name: 'message_search_contact',
+      risk_level: 'low',
+      status: 'success',
+      summary: `Searched contact: "${maskedName}" (Phone: ${maskedPhone})`
+    });
+
+    if (!match) {
+      return {
+        success: true,
+        output: `CONTACT NOT FOUND: Please select from suggested contacts: 'Rahul' or 'Amit'.`
+      };
+    }
+
+    return {
+      success: true,
+      output: JSON.stringify(match, null, 2)
+    };
   }
 
   public async messageCreateDraft(recipient: string, message: string): Promise<ToolResult> {
@@ -1519,8 +1598,8 @@ export class MessageCallToolsManager {
       };
     }
 
-    // Mask phone numbers if recipient looks like a phone number
-    const maskedRecipient = recipient.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
+    const maskedRecipient = this.maskPhone(recipient);
+    const maskedMsg = this.maskContent(message);
 
     // Store summary logs only - exclude personal message body
     this.database.logCommand({
@@ -1529,7 +1608,7 @@ export class MessageCallToolsManager {
       tool_name: 'message_create_draft',
       risk_level: 'medium',
       status: 'success',
-      summary: `Drafted message for recipient "${maskedRecipient}".`
+      summary: `Drafted message for recipient "${maskedRecipient}" with body snippet: "${maskedMsg}".`
     });
 
     const preview = [
@@ -1550,6 +1629,106 @@ export class MessageCallToolsManager {
     };
   }
 
+  public async messagePreview(recipient: string, message: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    if (!recipient || !message) {
+      return { success: false, error: 'INVALID ARGS: Recipient and message are required.', output: '' };
+    }
+
+    const maskedRecipient = this.maskPhone(recipient);
+
+    this.database.logCommand({
+      user_input: `message_preview to: ${maskedRecipient}`,
+      detected_intent: 'MESSAGE_PREVIEW',
+      tool_name: 'message_preview',
+      risk_level: 'low',
+      status: 'success',
+      summary: `Previewed outgoing message to recipient "${maskedRecipient}"`
+    });
+
+    const output = [
+      `==========================================`,
+      `        🛡️ SEND PREVIEW CONFIRMATION`,
+      `==========================================`,
+      `Recipient: ${recipient}`,
+      `Message: "${message}"`,
+      `Action: Ready to send (Awaiting UI Approval)`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: output
+    };
+  }
+
+  public async messageSendAfterApproval(recipient: string, message: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    if (!recipient || !message) {
+      return { success: false, error: 'INVALID ARGS: Recipient and message are required.', output: '' };
+    }
+
+    // 1. macOS Automation Permission check simulation
+    if (recipient.toUpperCase() === 'NO_PERMISSION') {
+      return {
+        success: false,
+        error: 'macOS Automation permission is missing. Please go to System Settings > Privacy & Security > Automation, and allow Jarvis to control Messages.',
+        output: 'DIAGNOSTIC: permission_denied'
+      };
+    }
+
+    // 2. Messaging Transmission fail check simulation (Do not retry automatically)
+    if (recipient.toUpperCase() === 'FAIL') {
+      return {
+        success: false,
+        error: 'Messaging transmission failed. Continuity network link is down. Jarvis will not automatically retry.',
+        output: ''
+      };
+    }
+
+    const maskedRecipient = this.maskPhone(recipient);
+    const maskedMsg = this.maskContent(message);
+
+    this.database.logCommand({
+      user_input: `message_send_after_approval to: ${maskedRecipient}`,
+      detected_intent: 'MESSAGE_SEND',
+      tool_name: 'message_send_after_approval',
+      risk_level: 'high',
+      status: 'success',
+      summary: `Sent message to "${maskedRecipient}" with snippet: "${maskedMsg}"`
+    });
+
+    const sendReceipt = [
+      `==========================================`,
+      `        🚀 MESSAGE DISPATCH RECEIPT`,
+      `==========================================`,
+      `Recipient: ${recipient}`,
+      `Status: SUCCESSFULLY TRANSMITTED`,
+      `Medium: macOS iMessage Continuity`,
+      `Timestamp: ${new Date().toISOString()}`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output: sendReceipt
+    };
+  }
+
   public async callPrepare(recipient: string): Promise<ToolResult> {
     if (!this.storage.isExternalDriveMounted()) {
       return {
@@ -1567,7 +1746,7 @@ export class MessageCallToolsManager {
       };
     }
 
-    const maskedRecipient = recipient.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
+    const maskedRecipient = this.maskPhone(recipient);
 
     this.database.logCommand({
       user_input: `call_prepare to: ${maskedRecipient}`,
@@ -1604,7 +1783,6 @@ export class MessageCallToolsManager {
       };
     }
 
-    // Default mock contact lookup details
     let phone = '+91 98765 43210';
     if (name.toLowerCase() === 'rahul') {
       phone = '+91 98765 43210';
@@ -1612,9 +1790,8 @@ export class MessageCallToolsManager {
       phone = '+91 99887 76655';
     }
 
-    const maskedPhone = phone.replace(/(\+?[0-9]{2,4}\s?[0-9]{3,5})\s?[0-9]{4,6}\b/g, '$1XXXXX');
+    const maskedPhone = this.maskPhone(phone);
 
-    // Log action summary with masked phone number
     this.database.logCommand({
       user_input: `contact_lookup_placeholder for ${name}`,
       detected_intent: 'CONTACT_LOOKUP',

@@ -39,7 +39,7 @@ export class SafetyEngine {
     /git\s+push/,                         // git push
     /firebase\s+deploy/,                  // firebase deploy
     /(send\s+email|mail\s+|gmail_send_email)/i, // send email
-    /(send\s+message|sms\s+)/i,           // send SMS/chat
+    /(send\s+message|sms\s+|message_send_after_approval)/i,           // send SMS/chat
     /(start\s+call|call\s+)/i             // call operations
   ];
 

@@ -661,44 +661,89 @@ describe('ToolRegistry FileTools Tests', () => {
     assert.equal(safety.classifyCommand('message_create_draft recipient: "Rahul"'), 'medium');
     assert.equal(safety.classifyCommand('call_prepare recipient: "Rahul"'), 'medium');
     assert.equal(safety.classifyCommand('contact_lookup_placeholder name: "Rahul"'), 'low');
+    assert.equal(safety.classifyCommand('message_send_after_approval recipient: "Rahul"'), 'high');
 
-    // Test 2: Successful message draft creation
+    // Test 2: Successful contact search
+    const searchRes = await msgCall.messageSearchContact('Rahul');
+    assert.equal(searchRes.success, true);
+    assert.match(searchRes.output, /Rahul/);
+    assert.match(searchRes.output, /\+91 98765 43210/);
+
+    // Test 3: Unknown contact search asks to select contact
+    const searchUnknown = await msgCall.messageSearchContact('UnknownContact');
+    assert.equal(searchUnknown.success, true);
+    assert.match(searchUnknown.output, /CONTACT NOT FOUND: Please select from suggested contacts/);
+
+    // Test 4: Successful message draft creation
     const draftRes = await msgCall.messageCreateDraft('Rahul', 'main 30 minute me call karunga.');
     assert.equal(draftRes.success, true);
     assert.match(draftRes.output, /Status: MESSAGE DRAFT CREATED/i);
     assert.match(draftRes.output, /Recipient: Rahul/);
     assert.match(draftRes.output, /main 30 minute me call karunga\./);
 
-    // Test 3: Successful call preparation
+    // Test 5: Successful message preview
+    const previewRes = await msgCall.messagePreview('Rahul', 'main 30 minute me call karunga.');
+    assert.equal(previewRes.success, true);
+    assert.match(previewRes.output, /SEND PREVIEW CONFIRMATION/);
+
+    // Test 6: Successful message sending after approval
+    const sendRes = await msgCall.messageSendAfterApproval('Rahul', 'main 30 minute me call karunga.');
+    assert.equal(sendRes.success, true);
+    assert.match(sendRes.output, /MESSAGE DISPATCH RECEIPT/);
+
+    // Test 7: macOS Automation Permission Missing Diagnostic Error
+    const sendNoPermission = await msgCall.messageSendAfterApproval('NO_PERMISSION', 'testing body');
+    assert.equal(sendNoPermission.success, false);
+    assert.match(sendNoPermission.error || '', /macOS Automation permission is missing/);
+    assert.equal(sendNoPermission.output, 'DIAGNOSTIC: permission_denied');
+
+    // Test 8: Message Send transmission Fail check (Do not retry automatically)
+    const sendFail = await msgCall.messageSendAfterApproval('FAIL', 'testing body');
+    assert.equal(sendFail.success, false);
+    assert.match(sendFail.error || '', /transmission failed/);
+
+    // Test 9: Successful call preparation
     const callRes = await msgCall.callPrepare('+919876543210');
     assert.equal(callRes.success, true);
     assert.match(callRes.output, /Status: CALL PREPARED SUCCESSFULLY/i);
     assert.match(callRes.output, /Target Recipient: \+919876543210/);
 
-    // Test 4: Contact lookup (returns phone and masks inside log)
+    // Test 10: Contact lookup (returns phone and masks inside log)
     const lookupRes = await msgCall.contactLookupPlaceholder('Rahul');
     assert.equal(lookupRes.success, true);
     assert.match(lookupRes.output, /Phone: \+91 98765 43210/);
 
-    // Test 5: Verify phone numbers are masked in SQLite logs
+    // Test 11: Verify phone numbers and message content snippets are masked in SQLite logs
     const logs = db.getCommands();
-    // Verify message draft log (excludes message content body)
-    assert.equal(logs[0].tool_name, 'message_create_draft');
-    assert.equal(logs[0].summary, 'Drafted message for recipient "Rahul".');
-    assert.ok(!logs[0].summary.includes('main 30 minute me call'));
-    assert.ok(!logs[0].user_input.includes('main 30 minute me call'));
+    
+    // Verify contact search log
+    const logSearch = logs.find(l => l.tool_name === 'message_search_contact' && l.user_input.includes('Rahul'));
+    assert.ok(logSearch);
+    assert.equal(logSearch.summary, 'Searched contact: "Rahul" (Phone: +91 98765XXXXX)');
+
+    // Verify message draft log
+    const logDraft = logs.find(l => l.tool_name === 'message_create_draft');
+    assert.ok(logDraft);
+    assert.equal(logDraft.summary, 'Drafted message for recipient "Rahul" with body snippet: "main 3***nga.".');
+    assert.ok(!logDraft.summary.includes('30 minute me call'));
+    assert.ok(!logDraft.user_input.includes('30 minute me call'));
 
     // Verify call preparation log (masks phone number)
-    assert.equal(logs[1].tool_name, 'call_prepare');
-    assert.equal(logs[1].summary, 'Prepared call for recipient "+91987654XXXXX".');
-    assert.ok(!logs[1].summary.includes('43210'));
+    const logCall = logs.find(l => l.tool_name === 'call_prepare');
+    assert.ok(logCall);
+    assert.equal(logCall.summary, 'Prepared call for recipient "+91987654XXXXX".');
 
     // Verify contact lookup log (masks phone number)
-    assert.equal(logs[2].tool_name, 'contact_lookup_placeholder');
-    assert.equal(logs[2].summary, 'Looked up contact card for Rahul (Phone: +91 98765XXXXX).');
-    assert.ok(!logs[2].summary.includes('43210'));
+    const logLookup = logs.find(l => l.tool_name === 'contact_lookup_placeholder');
+    assert.ok(logLookup);
+    assert.equal(logLookup.summary, 'Looked up contact card for Rahul (Phone: +91 98765XXXXX).');
 
-    // Test 6: Verify output sanitization regex masks phone numbers
+    // Verify message send log (masks body snippet)
+    const logSend = logs.find(l => l.tool_name === 'message_send_after_approval' && l.user_input.includes('Rahul'));
+    assert.ok(logSend);
+    assert.equal(logSend.summary, 'Sent message to "Rahul" with snippet: "main 3***nga."');
+
+    // Test 12: Verify output sanitization regex masks phone numbers
     const rawOutput = 'Calling recipient at +919876543210 for testing.';
     const sanitized = safety.sanitizeOutput(rawOutput);
     assert.equal(sanitized, 'Calling recipient at +91987654XXXXX for testing.');
