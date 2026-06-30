@@ -910,6 +910,42 @@ describe('ToolRegistry FileTools Tests', () => {
     assert.equal(listRes.success, true);
     assert.match(listRes.output, /Active GitHub Issues/i);
 
+    // Test 6: List PRs in detail
+    const prListRes = await gh.githubPrList();
+    assert.equal(prListRes.success, true);
+    assert.match(prListRes.output, /DETAILED PULL REQUESTS LIST/);
+
+    // Test 7: Create PR review draft
+    const prReviewRes = await gh.githubPrReviewDraft(26, 'Looks clean and ready to merge.');
+    assert.equal(prReviewRes.success, true);
+    assert.match(prReviewRes.output, /PR REVIEW DRAFT PREVIEW/);
+    assert.match(prReviewRes.output, /Looks clean and ready to merge/);
+
+    // Test 8: Create issue
+    const createIssueRes = await gh.githubCreateIssue('Bug: UI lag', 'HUD lag on heavy loads.');
+    assert.equal(createIssueRes.success, true);
+    assert.match(createIssueRes.output, /GITHUB ISSUE CREATED/);
+
+    // Test 9: Create PR draft
+    const createPrRes = await gh.githubCreatePrDraft('feat: wake-word', 'feature/wake-word', 'main');
+    assert.equal(createPrRes.success, true);
+    assert.match(createPrRes.output, /PULL REQUEST DRAFT CREATED/);
+
+    // Test 10: Merge PR barrier check
+    const mergeRes = await gh.githubPrMerge(26);
+    assert.equal(mergeRes.success, false);
+    assert.match(mergeRes.error || '', /Merging pull requests is disabled/);
+
+    // Test 11: Branch delete check
+    const deleteRes = await gh.githubBranchDelete('feature/voice-mode');
+    assert.equal(deleteRes.success, false);
+    assert.match(deleteRes.error || '', /Branch deletion operations are blocked/);
+
+    // Test 12: Secrets check
+    const secretsRes = await gh.githubSecretsSet('OPENAI_API_KEY', 'sk-proj-xyz');
+    assert.equal(secretsRes.success, false);
+    assert.match(secretsRes.error || '', /Modifying repository secrets is blocked/);
+
     cleanupSandbox();
   });
 

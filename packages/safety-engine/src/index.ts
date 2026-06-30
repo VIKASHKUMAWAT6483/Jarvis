@@ -90,6 +90,10 @@ export class SafetyEngine {
       return true; // Exposing secrets is blocked by default
     }
 
+    if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set')) {
+      return true;
+    }
+
     return this.blockedPatterns.some(pattern => pattern.test(trimmed));
   }
 
@@ -131,12 +135,24 @@ export class SafetyEngine {
       return 'low'; // search web and local project dashboard is low risk
     }
 
-    if (trimmed.includes('github_create_issue_draft')) {
-      return 'medium'; // creating issue drafts is medium risk
+    if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set')) {
+      return 'blocked';
     }
 
-    if (trimmed.includes('github_repo_status') || trimmed.includes('github_list_issues') || trimmed.includes('github_pr_summary')) {
-      return 'low'; // read-only github actions are low risk
+    if (trimmed.includes('github_pr_merge')) {
+      return 'critical';
+    }
+
+    if (trimmed.includes('github_create_pr_draft')) {
+      return 'high';
+    }
+
+    if (trimmed.includes('github_create_issue') || trimmed.includes('github_create_issue_draft')) {
+      return 'medium';
+    }
+
+    if (trimmed.includes('github_repo_status') || trimmed.includes('github_list_issues') || trimmed.includes('github_pr_summary') || trimmed.includes('github_pr_list') || trimmed.includes('github_pr_review_draft')) {
+      return 'low';
     }
 
     if (this.isBlocked(trimmed)) {

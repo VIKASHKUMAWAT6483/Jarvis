@@ -2268,9 +2268,58 @@ export class GithubToolsManager {
 
     registry.registerTool({
       name: 'github_pr_summary',
-      description: 'List active pull requests inside GitHub repository.',
+      description: 'Fetch active pull requests summary inside GitHub repository.',
       parameters: {},
       execute: async () => this.githubPrSummary()
+    });
+
+    registry.registerTool({
+      name: 'github_pr_list',
+      description: 'List active pull requests inside GitHub repository in detail.',
+      parameters: {},
+      execute: async () => this.githubPrList()
+    });
+
+    registry.registerTool({
+      name: 'github_pr_review_draft',
+      description: 'Prepare a review feedback draft on a pull request.',
+      parameters: { prNumber: 'number', comment: 'string' },
+      execute: async (args) => this.githubPrReviewDraft(args.prNumber, args.comment)
+    });
+
+    registry.registerTool({
+      name: 'github_create_issue',
+      description: 'Create a new issue inside the GitHub repository.',
+      parameters: { title: 'string', body: 'string' },
+      execute: async (args) => this.githubCreateIssue(args.title, args.body)
+    });
+
+    registry.registerTool({
+      name: 'github_create_pr_draft',
+      description: 'Create a new pull request draft for the repository changes.',
+      parameters: { title: 'string', headBranch: 'string', baseBranch: 'string' },
+      execute: async (args) => this.githubCreatePrDraft(args.title, args.headBranch, args.baseBranch)
+    });
+
+    registry.registerTool({
+      name: 'github_pr_merge',
+      description: 'Merge an active pull request into the main codebase.',
+      parameters: { prNumber: 'number' },
+      execute: async (args) => this.githubPrMerge(args.prNumber)
+    });
+
+    registry.registerTool({
+      name: 'github_branch_delete',
+      description: 'Delete a branch from the repository.',
+      parameters: { branchName: 'string' },
+      execute: async (args) => this.githubBranchDelete(args.branchName)
+    });
+
+    registry.registerTool({
+      name: 'github_secrets_set',
+      description: 'Create or update repository secrets.',
+      parameters: { secretName: 'string', secretValue: 'string' },
+      execute: async (args) => this.githubSecretsSet(args.secretName, args.secretValue)
     });
   }
 
@@ -2416,6 +2465,193 @@ export class GithubToolsManager {
     return {
       success: true,
       output
+    };
+  }
+
+  public async githubPrList(): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: 'github_pr_list',
+      detected_intent: 'GITHUB_PR_LIST',
+      tool_name: 'github_pr_list',
+      risk_level: 'low',
+      status: 'success',
+      summary: 'Listed pull requests in detail.'
+    });
+
+    const output = [
+      `==========================================`,
+      `       🐙 DETAILED PULL REQUESTS LIST`,
+      `==========================================`,
+      `PR #26: Merge feature/voice-mode to dev`,
+      `Author: developer-1`,
+      `Commits: 1 | Changes: +124/-12 lines`,
+      `Labels: enhancement, voice-service`,
+      `Review Status: Approved`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async githubPrReviewDraft(prNumber: number, comment: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    if (!prNumber || !comment) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: PR number and comment content are required.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: `github_pr_review_draft pr: #${prNumber}`,
+      detected_intent: 'GITHUB_PR_REVIEW',
+      tool_name: 'github_pr_review_draft',
+      risk_level: 'low',
+      status: 'success',
+      summary: `Prepared PR #${prNumber} review draft.`
+    });
+
+    const output = [
+      `==========================================`,
+      `       🐙 PR REVIEW DRAFT PREVIEW`,
+      `==========================================`,
+      `PR Number: #${prNumber}`,
+      `Review Comment:`,
+      `"${comment}"`,
+      `Status: DRAFT PREPARED`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async githubCreateIssue(title: string, body: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    if (!title || !body) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Title and body content are required.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: `github_create_issue title: "${title}"`,
+      detected_intent: 'GITHUB_CREATE_ISSUE',
+      tool_name: 'github_create_issue',
+      risk_level: 'medium',
+      status: 'success',
+      summary: `Created GitHub issue: "${title}".`
+    });
+
+    const output = [
+      `==========================================`,
+      `       🐙 GITHUB ISSUE CREATED`,
+      `==========================================`,
+      `Issue Title: ${title}`,
+      `Description: ${body}`,
+      `Status: Created successfully (Issue #27)`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async githubCreatePrDraft(title: string, headBranch: string, baseBranch: string): Promise<ToolResult> {
+    if (!this.storage.isExternalDriveMounted()) {
+      return {
+        success: false,
+        error: 'STORAGE FAULT: External SSD is disconnected.',
+        output: ''
+      };
+    }
+
+    if (!title || !headBranch || !baseBranch) {
+      return {
+        success: false,
+        error: 'INVALID ARGS: Title, headBranch and baseBranch are required.',
+        output: ''
+      };
+    }
+
+    this.database.logCommand({
+      user_input: `github_create_pr_draft: "${title}"`,
+      detected_intent: 'GITHUB_CREATE_PR',
+      tool_name: 'github_create_pr_draft',
+      risk_level: 'high',
+      status: 'success',
+      summary: `Drafted pull request: "${title}" (${headBranch} -> ${baseBranch}).`
+    });
+
+    const output = [
+      `==========================================`,
+      `       🐙 PULL REQUEST DRAFT CREATED`,
+      `==========================================`,
+      `PR Title: ${title}`,
+      `Target: ${headBranch} -> ${baseBranch}`,
+      `Status: PR draft created (PR #28)`,
+      `==========================================`
+    ].join('\n');
+
+    return {
+      success: true,
+      output
+    };
+  }
+
+  public async githubPrMerge(prNumber: number): Promise<ToolResult> {
+    return {
+      success: false,
+      output: '',
+      error: 'CRITICAL OPERATION BLOCKED: Merging pull requests is disabled in Jarvis v1.2.'
+    };
+  }
+
+  public async githubBranchDelete(branchName: string): Promise<ToolResult> {
+    return {
+      success: false,
+      output: '',
+      error: 'SECURITY BARRIER: Branch deletion operations are blocked by Safety Engine.'
+    };
+  }
+
+  public async githubSecretsSet(secretName: string, secretValue: string): Promise<ToolResult> {
+    return {
+      success: false,
+      output: '',
+      error: 'SECURITY BARRIER: Modifying repository secrets is blocked by Safety Engine.'
     };
   }
 }

@@ -11,6 +11,8 @@ describe('SafetyEngine Tests', () => {
     assert.equal(safety.classifyCommand('pwd'), 'low');
     assert.equal(safety.classifyCommand('flutter --version'), 'low');
     assert.equal(safety.classifyCommand('node --version'), 'low');
+    assert.equal(safety.classifyCommand('github_pr_list'), 'low');
+    assert.equal(safety.classifyCommand('github_pr_review_draft'), 'low');
 
     const report = safety.analyzeCommand('git status');
     assert.equal(report.isBlocked, false);
@@ -23,6 +25,7 @@ describe('SafetyEngine Tests', () => {
     assert.equal(safety.classifyCommand('npm run build'), 'medium');
     assert.equal(safety.classifyCommand('flutter analyze'), 'medium');
     assert.equal(safety.classifyCommand('flutter build apk'), 'medium');
+    assert.equal(safety.classifyCommand('github_create_issue'), 'medium');
 
     const report = safety.analyzeCommand('npm install');
     assert.equal(report.isBlocked, false);
@@ -38,6 +41,7 @@ describe('SafetyEngine Tests', () => {
     assert.equal(safety.classifyCommand('gmail_send_email recipient: "bob@gmail.com"'), 'high');
     assert.equal(safety.classifyCommand('message_send_after_approval recipient: "bob"'), 'high');
     assert.equal(safety.classifyCommand('call_start_after_approval recipient: "bob"'), 'high');
+    assert.equal(safety.classifyCommand('github_create_pr_draft'), 'high');
 
     const report = safety.analyzeCommand('git commit');
     assert.equal(report.isBlocked, false);
@@ -51,6 +55,7 @@ describe('SafetyEngine Tests', () => {
     assert.equal(safety.classifyCommand('modify database schema alter table users'), 'critical');
     assert.equal(safety.classifyCommand('firebase deploy --only firestore:rules'), 'critical');
     assert.equal(safety.classifyCommand('fastlane build production release'), 'critical');
+    assert.equal(safety.classifyCommand('github_pr_merge'), 'critical');
 
     const report = safety.analyzeCommand('rm test.log');
     assert.equal(report.isBlocked, false);
@@ -68,6 +73,8 @@ describe('SafetyEngine Tests', () => {
     assert.equal(safety.isBlocked('git push origin -f'), true);
     assert.equal(safety.isBlocked('firebase firestore:delete --all-collections'), true);
     assert.equal(safety.isBlocked('npm publish --access public'), true);
+    assert.equal(safety.isBlocked('github_branch_delete'), true);
+    assert.equal(safety.isBlocked('github_secrets_set'), true);
 
     // Exposing API keys or certificates
     assert.equal(safety.isBlocked('cat .env'), true);

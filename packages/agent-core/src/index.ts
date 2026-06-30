@@ -300,6 +300,18 @@ export class AgentCore {
         args: {}
       };
     }
+
+    // 20.2. GitHub PR Draft Creation
+    if (p.includes('pr draft') || p.includes('github_create_pr_draft')) {
+      return {
+        toolName: 'github_create_pr_draft',
+        args: {
+          title: 'Draft: Voice HUD modifications',
+          headBranch: 'v1.2-development',
+          baseBranch: 'main'
+        }
+      };
+    }
  
     return { toolName: null, args: {} };
   }
@@ -373,6 +385,29 @@ export class AgentCore {
       return {
         reply: `Error: Inverted intent maps to unregistered tool "${toolName}".`,
         error: "TOOL_NOT_FOUND"
+      };
+    }
+
+    // 6.5. Universal Safety Gate Check
+    const cmdReport = this.safety.analyzeCommand(toolName);
+    if (cmdReport.isBlocked) {
+      return {
+        reply: `Access denied. Command "${toolName}" is blocked by security guidelines.`,
+        error: `BLOCKED_COMMAND: Command "${toolName}" is blocked by security guidelines.`,
+        toolCalled: toolName
+      };
+    }
+    if (cmdReport.requiresApproval && !bypassOverride) {
+      const approvalCode = cmdReport.riskLevel === 'critical' ? 'TYPED_CONFIRMATION_REQUIRED' : 'APPROVAL_REQUIRED';
+      return {
+        reply: `Jarvis Shield triggered: Command execution requires user confirmation.`,
+        toolCalled: toolName,
+        error: `${approvalCode}: Action requires user validation.`,
+        approvalRequired: true,
+        criticalConfirmRequired: cmdReport.riskLevel === 'critical',
+        pendingCommand: toolName,
+        riskLevel: cmdReport.riskLevel,
+        explanation: cmdReport.explanation
       };
     }
 
