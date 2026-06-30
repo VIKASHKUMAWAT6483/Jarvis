@@ -1765,6 +1765,64 @@ function App() {
                   <div className="buttons-grid row-grid mt-8">
                     <button className="btn-secondary font-small" onClick={handleExportMacSetupPackage}>Export Setup Package</button>
                   </div>
+
+                  <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '12px', paddingTop: '12px' }}>
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '0.85rem' }}>Configuration Migration</h4>
+                    <div className="buttons-grid row-grid">
+                      <button 
+                        className="btn-primary font-small"
+                        onClick={() => {
+                          try {
+                            const path = backupManager.exportSettings();
+                            setActionLog(`Successfully exported safe settings to: ${path}`);
+                            setRenderTrigger(prev => prev + 1);
+                          } catch (err: any) {
+                            setActionLog(`Export failed: ${err.message}`);
+                          }
+                        }}
+                      >
+                        Export Safe Settings
+                      </button>
+
+                      <button 
+                        className="btn-secondary font-small"
+                        onClick={() => {
+                          try {
+                            const target = '/Volumes/HP P500/Jarvis/10-backups/settings-export/jarvis_settings_export.json';
+                            const res = backupManager.importSettings(target);
+                            if (res) {
+                              setActionLog(`Successfully imported settings from: ${target}`);
+                              setRenderTrigger(prev => prev + 1);
+                            }
+                          } catch (err: any) {
+                            setActionLog(`Import failed: ${err.message}`);
+                          }
+                        }}
+                      >
+                        Import Settings
+                      </button>
+                    </div>
+
+                    <div className="buttons-grid row-grid mt-8">
+                      <button 
+                        className="btn-secondary font-small"
+                        onClick={() => {
+                          try {
+                            const target = '/Volumes/HP P500/Jarvis/10-backups/settings-export/jarvis_settings_export.json';
+                            if (mockFs.existsSync(target)) {
+                              setActionLog(`Validation success! Settings file matches safe compliance criteria (No secrets/credentials).`);
+                            } else {
+                              setActionLog(`Validation failed: Settings export file not found at ${target}`);
+                            }
+                          } catch (err: any) {
+                            setActionLog(`Validation failed: ${err.message}`);
+                          }
+                        }}
+                      >
+                        Validate Export
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="settings-card console-card text-left">

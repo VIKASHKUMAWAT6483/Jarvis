@@ -222,4 +222,105 @@ export class BackupManager {
 
     return targetDir;
   }
+
+  /**
+   * Exports safe configuration settings for migration (excluding secrets/keys)
+   */
+  public exportSettings(): string {
+    if (!this.fs || !this.path) {
+      throw new Error('File system adapter is unavailable for settings export.');
+    }
+
+    const exportRoot = '/Volumes/HP P500/Jarvis/10-backups/settings-export';
+    if (!this.fs.existsSync(exportRoot)) {
+      this.fs.mkdirSync(exportRoot, { recursive: true });
+    }
+
+    // Assemble safe configuration
+    const safeConfig = {
+      timestamp: Date.now(),
+      storage_paths: {
+        externalRoot: this.storage.getExternalRoot(),
+        internalRoot: this.storage.getInternalConfigRoot(),
+        temporaryInternalModeAllowed: this.storage.isTemporaryInternalModeAllowed()
+      },
+      project_profiles: this.dbManager ? this.dbManager.getProjectProfiles() : [],
+      ui_preferences: {
+        theme: 'dark',
+        glassmorphism: true
+      },
+      language_preference: 'Hinglish',
+      voice_settings: this.voiceService ? this.voiceService.getSettings() : {
+        voiceEnabled: true,
+        audioCacheEnabled: true,
+        voiceResponseSpeed: 'normal',
+        preferredLanguage: 'Hinglish',
+        autoRetryVoiceOnce: true
+      },
+      command_template_settings: {
+        templates_enabled: true
+      },
+      report_settings: {
+        default_format: 'markdown',
+        reports_dir: '/Volumes/HP P500/Jarvis/05-reports/'
+      },
+      safety_preferences: {
+        safety_gating_enabled: true
+      }
+    };
+
+    const targetFile = this.path.join(exportRoot, 'jarvis_settings_export.json');
+    this.fs.writeFileSync(targetFile, JSON.stringify(safeConfig, null, 2));
+
+    if (this.dbManager) {
+      this.dbManager.logStorageEvent('SETTINGS_EXPORT', `Exported safe settings configurations to: ${targetFile}`);
+    }
+    return targetFile;
+  }
+
+  /**
+   * Imports configuration settings from a safe backup file (validates & blocks secrets)
+   */
+  public importSettings(exportFilePath: string): boolean {
+    if (!this.fs || !this.fs.existsSync(exportFilePath)) {
+      throw new Error(`Settings export file not found at: ${exportFilePath}`);
+    }
+
+    const content = this.fs.readFileSync(exportFilePath, 'utf8');
+    const config = JSON.parse(content);
+
+    // Verify safe contents: must not contain api keys or tokens
+    const rawKeys = ['openai', 'key', 'token', 'secret', 'password', 'cert', 'keystore'];
+    const contentLower = content.toLowerCase();
+    for (const key of rawKeys) {
+      if (contentLower.includes(key) && (contentLower.includes("sk-proj") || contentLower.includes("aizasy"))) {
+        throw new Error('CRITICAL SAFETY BLOCK: Expired settings packet contains unencrypted credentials or secret tokens.');
+      }
+    }
+
+    // Apply general configurations
+    if (config.storage_paths) {
+      this.storage.setTemporaryInternalMode(config.storage_paths.temporaryInternalModeAllowed);
+    }
+
+    if (config.voice_settings && this.voiceService) {
+      this.voiceService.setSettings(config.voice_settings);
+    }
+
+    // Import project profiles
+    if (config.project_profiles && Array.isArray(config.project_profiles) && this.dbManager) {
+      for (const proj of config.project_profiles) {
+        try {
+          this.dbManager.registerProjectProfile(proj);
+        } catch {
+          // ignore duplicate profiles
+        }
+      }
+    }
+
+    if (this.dbManager) {
+      this.dbManager.logStorageEvent('SETTINGS_IMPORT', `Imported safe settings configurations from: ${exportFilePath}`);
+    }
+    return true;
+  }
 }
