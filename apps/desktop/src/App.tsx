@@ -1282,7 +1282,7 @@ function App() {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <p>Version 1.1.0</p>
+          <p>Version 1.2.0</p>
         </div>
       </aside>
 
