@@ -35,11 +35,22 @@ export interface ProjectProfileRecord {
   updated_at: number;
 }
 
+export interface HealthScoreRecord {
+  id: string;
+  timestamp: number;
+  project_name: string;
+  health_score: number;
+  status: 'Excellent' | 'Good' | 'Needs Work' | 'Risky';
+  top_issues: string; // serialized JSON list
+  recommended_action: string;
+}
+
 export interface DatabaseSchema {
   commands: CommandRecord[];
   approvals: ApprovalRecord[];
   storage_events: StorageEventRecord[];
   project_profiles: ProjectProfileRecord[];
+  health_scores?: HealthScoreRecord[];
 }
 
 export class DatabaseManager {
@@ -96,7 +107,8 @@ export class DatabaseManager {
             commands: [],
             approvals: [],
             storage_events: [],
-            project_profiles: []
+            project_profiles: [],
+            health_scores: []
           };
           this.fs.writeFileSync(dbPath, JSON.stringify(emptySchema, null, 2));
         }
@@ -302,5 +314,36 @@ export class DatabaseManager {
     }
 
     return backupPath;
+  }
+
+  /**
+   * Logs a project health score check
+   */
+  public logHealthScore(record: Omit<HealthScoreRecord, 'id' | 'timestamp'>): HealthScoreRecord {
+    if (!this.isReady()) {
+      throw new Error('Database is offline. Operation blocked.');
+    }
+
+    const data = this.readDatabase();
+    if (!data.health_scores) data.health_scores = [];
+
+    const newRecord: HealthScoreRecord = {
+      id: `health_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      ...record
+    };
+
+    data.health_scores.push(newRecord);
+    this.writeDatabase(data);
+    return newRecord;
+  }
+
+  /**
+   * Retrieves all health score checks
+   */
+  public getHealthScores(): HealthScoreRecord[] {
+    if (!this.isReady()) return [];
+    const data = this.readDatabase();
+    return data.health_scores || [];
   }
 }

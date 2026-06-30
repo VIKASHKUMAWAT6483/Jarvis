@@ -329,6 +329,7 @@ function App() {
   const templatesList = useMemo(() => {
     return templateManager.getTemplates();
   }, [templateManager]);
+
   // Sync React states to VoiceService settings
   useEffect(() => {
     voiceService.setSettings({
@@ -392,6 +393,16 @@ function App() {
   // Current active project details
   const activeProject = useMemo(() => projectManager.getActiveProject(), [renderTrigger, dbError]);
   const activeIsInternal = useMemo(() => activeProject ? projectManager.isPathInternal(activeProject.project_path) : false, [activeProject]);
+
+  // Dynamic Project Health Score Calculation
+  const healthData = useMemo(() => {
+    if (!activeProject) return null;
+    try {
+      return projectManager.calculateProjectHealthScore(activeProject.project_path);
+    } catch {
+      return null;
+    }
+  }, [activeProject, renderTrigger, projectManager]);
 
   // Actions
   const handleCheckStorage = () => {
@@ -1118,9 +1129,21 @@ function App() {
                   <span>🛡️</span> <strong>Awaiting Authorizations:</strong> {pendingApprovalsCount} actions are held in the Safety Gate. Please review them!
                 </div>
               )}
-              {isSafetyBlockTriggered && (
+               {isSafetyBlockTriggered && (
                 <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid #ef4444', borderRadius: '8px', padding: '10px 16px', color: '#f87171', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>🚫</span> <strong>Safety Block Triggered:</strong> A high-risk command execution was recently blocked by the Security Gate.
+                </div>
+              )}
+              {healthData && healthData.topIssues.length > 0 && (
+                <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid #f59e0b', borderRadius: '8px', padding: '10px 16px', color: '#fbbf24', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>⚠️</span> <strong>Project Health Alert:</strong> Address the following concern(s) to optimize your health score:
+                  </div>
+                  <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px', fontSize: '0.75rem' }}>
+                    {healthData.topIssues.map((issue, idx) => (
+                      <li key={idx}>{issue}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
@@ -1178,6 +1201,32 @@ function App() {
                   Build Status: Clean &amp; Tagged v0.5.0
                 </div>
               </div>
+
+              {healthData ? (
+                <div className="settings-card text-left" style={{ margin: 0, padding: '12px', borderLeft: '4px solid #10b981' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>❤️ Project Health</h4>
+                    <span className="badge" style={{ fontSize: '0.65rem', background: healthData.status === 'Excellent' ? '#10b981' : healthData.status === 'Good' ? '#3b82f6' : healthData.status === 'Needs Work' ? '#f59e0b' : '#ef4444', color: '#fff' }}>
+                      {healthData.status}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', marginTop: '6px', color: '#fff' }}>{healthData.score} / 100</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-disabled)', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Next: {healthData.recommendedAction}
+                  </div>
+                </div>
+              ) : (
+                <div className="settings-card text-left" style={{ margin: 0, padding: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>❤️ Project Health</h4>
+                    <span className="badge status-failed" style={{ fontSize: '0.65rem' }}>No Active Project</span>
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 'bold', marginTop: '6px', color: '#fff' }}>N/A</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-disabled)', marginTop: '4px' }}>
+                    Select a workspace project to audit.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Split View Columns */}
