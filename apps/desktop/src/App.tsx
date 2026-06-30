@@ -6,8 +6,8 @@ import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, Gma
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
-import JarvisHUD from "./components/JarvisHUD";
 import "./App.css";
+import JarvisHUD from "./JarvisHUD";
 
 interface SimulatedFsState {
   externalRoot: string;
@@ -87,6 +87,8 @@ function App() {
   const [autoDisableOnHighCpu, setAutoDisableOnHighCpu] = useState(true);
   const [wakeWordStatus, setWakeWordStatus] = useState<'off' | 'listening' | 'detected'>('off');
   const [cpuSimulationAlert, setCpuSimulationAlert] = useState<string | null>(null);
+  const [showHud, setShowHud] = useState(true);
+  const [hudCurrentCommand, setHudCurrentCommand] = useState("");
 
   // Command Templates states
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("flutter_app_audit");
@@ -116,11 +118,6 @@ function App() {
   // Update Checker states
   const [updateManifest, setUpdateManifest] = useState<any | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState<boolean>(false);
-
-  // HUD Overlay states
-  const [hudVisible, setHudVisible] = useState<boolean>(true);
-  const [hudDefaultExpanded, setHudDefaultExpanded] = useState<boolean>(false);
-  const [hudOpacity, setHudOpacity] = useState<number>(85);
 
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
@@ -927,15 +924,18 @@ function App() {
     if (isRecording) return;
     setIsRecording(true);
     setVoiceStatus('Listening');
+    setHudCurrentCommand("Listening...");
     
     setChatMessages(prev => [...prev, { sender: 'jarvis', text: '🎤 Recording voice input... Speak now!' }]);
 
     setTimeout(async () => {
       setIsRecording(false);
       setVoiceStatus('Processing');
+      setHudCurrentCommand("Transcribing audio...");
       try {
         const transcribedText = await voiceService.recordAndTranscribe();
         setChatMessages(prev => [...prev, { sender: 'user', text: `🗣️ [Voice Input]: "${transcribedText}"` }]);
+        setHudCurrentCommand(transcribedText);
         
         const activePath = activeProject ? activeProject.project_path : '';
         setVoiceStatus('Tool running');
@@ -964,6 +964,7 @@ function App() {
         setRenderTrigger(prev => prev + 1);
       } catch (err: any) {
         setVoiceStatus('Failed');
+        setHudCurrentCommand("Voice command failed");
         setChatMessages(prev => [...prev, { sender: 'jarvis', text: `Voice Mode Error: ${err.message}` }]);
         // 4. Add fallback: Automatically put transcript into text command box for editing.
         const fallbackText = err.transcriptionAttempt || "Jarvis, current project ka git status batao";
@@ -1224,7 +1225,7 @@ function App() {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <p>Version 1.2.0-dev</p>
+          <p>Version 1.1.0</p>
         </div>
       </aside>
 
@@ -1965,6 +1966,22 @@ function App() {
 
                 <div className="settings-card text-left">
                   <h3>🎙️ Voice Settings &amp; Reliability Options</h3>
+
+                  <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
+                    <div className="toggle-label">
+                      <strong>Show Floating HUD Overlay</strong>
+                      <p>Enable the movable glassmorphic dashboard widget.</p>
+                    </div>
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        id="setting-toggle-hud"
+                        checked={showHud}
+                        onChange={(e) => setShowHud(e.target.checked)}
+                      />
+                      <span className="slider round"></span>
+                    </label>
+                  </div>
                   
                   <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
                     <div className="toggle-label">
@@ -2066,49 +2083,6 @@ function App() {
                             <span className="slider round"></span>
                           </label>
                         </div>
-                      </div>
-                    </div>
-
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '16px', paddingTop: '12px' }}>
-                      <strong>HUD Preferences</strong>
-
-                      <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
-                        <div className="toggle-label">
-                          <strong>Enable Floating HUD</strong>
-                          <p>Show a lightweight overlay with system status, voice progress, and quick actions.</p>
-                        </div>
-                        <label className="switch">
-                          <input 
-                            type="checkbox" 
-                            checked={hudVisible}
-                            onChange={(e) => setHudVisible(e.target.checked)}
-                          />
-                          <span className="slider round"></span>
-                        </label>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                        <span className="label">Default HUD State:</span>
-                        <select 
-                          value={hudDefaultExpanded ? 'expanded' : 'minimized'}
-                          onChange={(e) => setHudDefaultExpanded(e.target.value === 'expanded')}
-                          style={{ padding: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.75rem' }}
-                        >
-                          <option value="minimized">Minimized (Orb)</option>
-                          <option value="expanded">Expanded (Full Panel)</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                        <span className="label">HUD Opacity: {hudOpacity}%</span>
-                        <input 
-                          type="range" 
-                          min="50" 
-                          max="100" 
-                          value={hudOpacity}
-                          onChange={(e) => setHudOpacity(parseInt(e.target.value))}
-                          style={{ width: '120px', accentColor: '#6366f1' }}
-                        />
                       </div>
                     </div>
                   </div>
@@ -2835,25 +2809,24 @@ function App() {
           </div>
         </div>
       )}
-
-      {/* Jarvis Lightweight HUD Overlay */}
       <JarvisHUD
-        visible={hudVisible}
         voiceStatus={voiceStatus}
-        wakeWordStatus={wakeWordStatus}
+        currentCommand={hudCurrentCommand}
         isRecording={isRecording}
+        projectName={activeProject?.project_name || "None"}
         ssdConnected={fsState.isMounted}
-        voiceEnabled={voiceEnabled}
-        activeProjectName={activeProject?.project_name || null}
-        healthScore={healthData?.score ?? null}
-        healthStatus={healthData?.status ?? null}
-        pendingApprovalsCount={pendingApprovalsCount}
-        recentCommands={commandsList.slice(0, 3).map(c => ({ id: c.id, user_input: c.user_input, status: c.status }))}
-        hudOpacity={hudOpacity}
-        defaultExpanded={hudDefaultExpanded}
+        pendingApprovals={approvalsList.filter(a => a.approval_status === "pending").length}
+        wakeWordStatus={wakeWordStatus}
         onMicToggle={handleTriggerVoiceRecording}
-        onBriefingTrigger={handleGenerateDailyBriefing}
-        onBackupTrigger={handleRunHomeBackup}
+        onStop={() => {
+          setIsRecording(false);
+          setVoiceStatus('idle');
+          setHudCurrentCommand("");
+        }}
+        onOpenDashboard={() => setActiveTab("home")}
+        onOpenApprovals={() => setActiveTab("approvals")}
+        visible={showHud}
+        onClose={() => setShowHud(false)}
       />
     </div>
   );

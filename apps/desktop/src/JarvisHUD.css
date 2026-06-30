@@ -1,0 +1,281 @@
+/* ==============================================================================
+   Jarvis HUD — Lightweight Floating Overlay Styles
+   Design: Dark UI · Cyan/Blue accent · Glassmorphic · Low CPU
+   ============================================================================== */
+
+/* ── HUD Container ── */
+.jarvis-hud {
+  position: fixed;
+  z-index: 9999;
+  border-radius: 16px;
+  background: rgba(10, 12, 18, 0.88);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  box-shadow:
+    0 4px 32px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(56, 189, 248, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  user-select: none;
+  overflow: hidden;
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  color: #f3f4f6;
+  transition: width 0.25s ease, height 0.25s ease;
+}
+
+/* Compact vs Expanded sizing */
+.jarvis-hud--compact {
+  width: 280px;
+}
+.jarvis-hud--expanded {
+  width: 320px;
+}
+
+/* ── Header / Drag Handle ── */
+.hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+  cursor: grab;
+}
+.hud-header:active {
+  cursor: grabbing;
+}
+
+.hud-header__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hud-header__right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Brand Orb — small pulse */
+.hud-brand-orb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+  animation: hud-orb-pulse 3s ease-in-out infinite;
+}
+@keyframes hud-orb-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(56, 189, 248, 0.4); }
+  50%      { box-shadow: 0 0 14px rgba(56, 189, 248, 0.7); }
+}
+
+.hud-brand-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: #e0e7ff;
+}
+
+/* ── Status Dot ── */
+.hud-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.dot--idle       { background: #4b5563; }
+.dot--listening  { background: #38bdf8; box-shadow: 0 0 6px rgba(56, 189, 248, 0.6); animation: dot-blink 1.2s ease-in-out infinite; }
+.dot--processing { background: #a78bfa; box-shadow: 0 0 6px rgba(167, 139, 250, 0.6); animation: dot-blink 0.8s ease-in-out infinite; }
+.dot--approval   { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.6); animation: dot-blink 1.5s ease-in-out infinite; }
+.dot--success    { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6); }
+.dot--error      { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* ── Icon Buttons (header) ── */
+.hud-icon-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.hud-icon-btn:hover {
+  color: #f3f4f6;
+  background: rgba(255, 255, 255, 0.06);
+}
+.hud-icon-btn--close:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* ── Waveform ── */
+.hud-waveform {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 14px;
+  overflow: hidden;
+}
+.hud-waveform__bar {
+  display: inline-block;
+  width: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(56, 189, 248, 0.35);
+  transition: height 0.15s ease;
+}
+.hud-waveform--active .hud-waveform__bar {
+  background: linear-gradient(180deg, #38bdf8, #6366f1);
+  animation: waveform-bounce 0.6s ease-in-out infinite alternate;
+}
+@keyframes waveform-bounce {
+  0%   { height: 3px; }
+  100% { height: 16px; }
+}
+
+/* ── Status Row ── */
+.hud-status-row {
+  padding: 4px 14px;
+}
+.hud-status-label {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Command Row ── */
+.hud-command-row {
+  padding: 2px 14px 4px;
+}
+.hud-command-text {
+  font-size: 11px;
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  color: #38bdf8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+}
+
+/* ── Expanded Section ── */
+.hud-expanded-section {
+  padding: 6px 14px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  margin-top: 2px;
+}
+
+.hud-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+}
+.hud-detail-key {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.hud-detail-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e0e7ff;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hud-val--ok      { color: #10b981; }
+.hud-val--warn    { color: #f59e0b; }
+.hud-val--pending { color: #f59e0b; }
+
+/* ── Warning Banners ── */
+.hud-warning-banner {
+  margin: 4px 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+.hud-warning-banner--voice {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* ── Quick Action Buttons ── */
+.hud-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  margin-top: 2px;
+}
+.hud-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 6px 0;
+  font-size: 14px;
+  cursor: pointer;
+  color: #d1d5db;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  position: relative;
+}
+.hud-action-btn:hover {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
+}
+.hud-action-btn:active {
+  transform: translateY(0);
+}
+
+/* Recording pulse */
+.hud-action-btn--recording {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  animation: recording-pulse 1.2s ease-in-out infinite;
+}
+@keyframes recording-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+  50%      { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+}
+
+/* Approvals badge */
+.hud-action-btn--badge::after {
+  content: attr(data-count);
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+}
