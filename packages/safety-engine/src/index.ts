@@ -40,7 +40,7 @@ export class SafetyEngine {
     /firebase\s+deploy/,                  // firebase deploy
     /(send\s+email|mail\s+|gmail_send_email)/i, // send email
     /(send\s+message|sms\s+|message_send_after_approval)/i,           // send SMS/chat
-    /(start\s+call|call\s+)/i             // call operations
+    /(start\s+call|call\s+|call_start_after_approval)/i             // call operations
   ];
 
   // Regex patterns for medium commands
@@ -118,7 +118,7 @@ export class SafetyEngine {
       return 'medium'; // message draft creation and call preparation are medium risk
     }
 
-    if (trimmed.includes('contact_lookup_placeholder')) {
+    if (trimmed.includes('contact_lookup_placeholder') || trimmed.includes('contact_lookup')) {
       return 'low'; // contact lookup is low risk
     }
 

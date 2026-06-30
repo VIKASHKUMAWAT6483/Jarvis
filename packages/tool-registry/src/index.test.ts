@@ -743,6 +743,51 @@ describe('ToolRegistry FileTools Tests', () => {
     assert.ok(logSend);
     assert.equal(logSend.summary, 'Sent message to "Rahul" with snippet: "main 3***nga."');
 
+    // Test 11b: Call Tools verification
+    // contact_lookup
+    const contactLookupRes = await msgCall.contactLookup('Rahul');
+    assert.equal(contactLookupRes.success, true);
+    assert.match(contactLookupRes.output, /Phone: \+91 98765 43210/);
+
+    const contactLookupUnknown = await msgCall.contactLookup('UnknownName');
+    assert.equal(contactLookupUnknown.success, true);
+    assert.match(contactLookupUnknown.output, /CONTACT NOT FOUND: Please select from suggested contacts/);
+
+    // call_preview
+    const callPreviewRes = await msgCall.callPreview('Rahul');
+    assert.equal(callPreviewRes.success, true);
+    assert.match(callPreviewRes.output, /CALL PREVIEW DETAIL/);
+
+    // call_start_after_approval
+    const callStartRes = await msgCall.callStartAfterApproval('Rahul');
+    assert.equal(callStartRes.success, true);
+    assert.match(callStartRes.output, /OUTGOING CALL INITIATED/);
+
+    // macOS call permissions missing check
+    const callNoPermission = await msgCall.callStartAfterApproval('NO_PERMISSION');
+    assert.equal(callNoPermission.success, false);
+    assert.match(callNoPermission.error || '', /macOS call permissions are missing/);
+    assert.equal(callNoPermission.output, 'DIAGNOSTIC: permission_denied');
+
+    // Dialing failure check
+    const callFail = await msgCall.callStartAfterApproval('FAIL');
+    assert.equal(callFail.success, false);
+    assert.match(callFail.error || '', /telephony handoff failed/);
+
+    // Verify Call logs in SQLite database
+    const finalLogs = db.getCommands();
+    const logContactLookup = finalLogs.find(l => l.tool_name === 'contact_lookup' && l.user_input.includes('Rahul'));
+    assert.ok(logContactLookup);
+    assert.equal(logContactLookup.summary, 'Looked up contact: "Rahul" (Phone: +91 98765XXXXX)');
+
+    const logCallPreview = finalLogs.find(l => l.tool_name === 'call_preview' && l.user_input.includes('Rahul'));
+    assert.ok(logCallPreview);
+    assert.equal(logCallPreview.summary, 'Previewed outgoing call details to recipient "Rahul"');
+
+    const logCallStart = finalLogs.find(l => l.tool_name === 'call_start_after_approval' && l.user_input.includes('Rahul'));
+    assert.ok(logCallStart);
+    assert.equal(logCallStart.summary, 'Started call to "Rahul".');
+
     // Test 12: Verify output sanitization regex masks phone numbers
     const rawOutput = 'Calling recipient at +919876543210 for testing.';
     const sanitized = safety.sanitizeOutput(rawOutput);
