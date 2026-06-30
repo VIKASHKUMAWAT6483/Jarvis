@@ -75,6 +75,7 @@ describe('SafetyEngine Tests', () => {
     assert.equal(safety.isBlocked('npm publish --access public'), true);
     assert.equal(safety.isBlocked('github_branch_delete'), true);
     assert.equal(safety.isBlocked('github_secrets_set'), true);
+    assert.equal(safety.isBlocked('app_store_upload'), true);
 
     // Exposing API keys or certificates
     assert.equal(safety.isBlocked('cat .env'), true);

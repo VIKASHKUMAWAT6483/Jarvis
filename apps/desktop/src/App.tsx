@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -18,7 +18,7 @@ interface SimulatedFsState {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<"home" | "projects" | "storage" | "logs" | "approvals" | "templates" | "reports">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "projects" | "storage" | "logs" | "approvals" | "templates" | "reports" | "release">("home");
   const [renderTrigger, setRenderTrigger] = useState(0);
   
   // Simulated storage state
@@ -88,6 +88,13 @@ function App() {
   const [wakeWordStatus, setWakeWordStatus] = useState<'off' | 'listening' | 'detected'>('off');
   const [cpuSimulationAlert, setCpuSimulationAlert] = useState<string | null>(null);
   const [showHud, setShowHud] = useState(true);
+
+  // Release Assistant state variables
+  const [releaseNotesVersion, setReleaseNotesVersion] = useState("1.2.0");
+  const [releaseAppName, setReleaseAppName] = useState("Jarvis AI");
+  const [releaseNotesDraftOutput, setReleaseNotesDraftOutput] = useState("");
+  const [storeListingDraftOutput, setStoreListingDraftOutput] = useState("");
+  const [releaseReportOutputText, setReleaseReportOutputText] = useState("");
   const [hudCurrentCommand, setHudCurrentCommand] = useState("");
 
   // Command Templates states
@@ -325,6 +332,10 @@ function App() {
       fs: mockFs,
       path: simpleMockPath
     });
+    const art = new AppReleaseToolsManager(storageManager, databaseManager, {
+      fs: mockFs,
+      path: simpleMockPath
+    });
     ft.registerAll(registry);
     gt.registerAll(registry);
     bt.registerAll(registry);
@@ -334,6 +345,7 @@ function App() {
     browser.registerAll(registry);
     gh.registerAll(registry);
     mpt.registerAll(registry);
+    art.registerAll(registry);
     return registry;
   }, [storageManager, databaseManager, projectManager, terminalExecutor, mockFs, simpleMockPath]);
 
@@ -1237,6 +1249,12 @@ function App() {
             onClick={() => setActiveTab("reports")}
           >
             <span className="nav-icon">📊</span> Reports
+          </button>
+          <button 
+            className={`nav-item ${activeTab === "release" ? "active" : ""}`}
+            onClick={() => setActiveTab("release")}
+          >
+            <span className="nav-icon">🚀</span> Release Assistant
           </button>
         </nav>
         <div className="sidebar-footer">
@@ -2726,6 +2744,238 @@ function App() {
                     <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Select a report file from the list to preview content or export format conversions.</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        ) : activeTab === "release" ? (
+          <div className="viewport-page">
+            <header className="page-header">
+              <h1>🚀 App Store Release Assistant</h1>
+              <p>Manage store listing drafts, app release notes, and store deployment checklists.</p>
+            </header>
+
+            <div className="dashboard-grid" style={{ gridTemplateColumns: '1.2fr 1fr', gap: '16px' }}>
+              {/* Checklists Left Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Android Card */}
+                <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a7f3d0' }}>
+                    🤖 Android Release Checklist (Google Play Store)
+                  </h3>
+                  <p className="card-desc text-left font-small">Verify configuration properties before compiling AAB bundles.</p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Package Name:</strong> Verified <code>com.jarvis.ai</code></span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Version Check:</strong> Version Code 120 (Name 1.2.0)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Signing Config:</strong> Keystore keys loaded from Keychain</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>AAB Artifact Check:</strong> Output bundle exists</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Permissions:</strong> Checked manifest for root privileges</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Privacy Policy Link:</strong> Configured at <code>https://jarvis.ai/privacy</code></span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Target SDK Note:</strong> API Level 34 verified</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>App Check Guard:</strong> Firebase client SDK keys secured</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Play Store Assets:</strong> Screenshots and icons ready</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* iOS Card */}
+                <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#bfdbfe' }}>
+                    🍏 iOS Release Checklist (Apple App Store)
+                  </h3>
+                  <p className="card-desc text-left font-small">Verify provisioning profiles and privacy manifests before Xcode archive creation.</p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Bundle ID:</strong> Mapped to <code>com.jarvis.ai.desktop</code></span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Build Target:</strong> Version 1.2.0 (Build 120)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Signing & provisioning:</strong> Production Provisioning Profile active</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>Privacy Manifest Checklist:</strong> Descriptors set for user tracking</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#d1d5db', cursor: 'pointer' }}>
+                      <input type="checkbox" defaultChecked />
+                      <span><strong>App Store Assets:</strong> 6.7" & 12.9" device screenshots structured</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tools & Report Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Release Drafts Generation Card */}
+                <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                  <h3>📝 Release Notes & Listings Drafts</h3>
+                  <p className="card-desc text-left font-small">Compile store listings details and notes drafts.</p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Release Target Version</label>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                        <input 
+                          type="text" 
+                          value={releaseNotesVersion} 
+                          onChange={(e) => setReleaseNotesVersion(e.target.value)} 
+                          style={{ flex: 1, padding: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', color: '#fff' }}
+                        />
+                        <button 
+                          className="btn-primary" 
+                          onClick={async () => {
+                            try {
+                              const registry = toolRegistry;
+                              const tool = registry.getTool('app_release_notes_draft');
+                              if (tool) {
+                                const res = await tool.execute({ version: releaseNotesVersion });
+                                if (res.success) {
+                                  setReleaseNotesDraftOutput(res.output);
+                                  setActionLog(`Drafted release notes for version v${releaseNotesVersion}`);
+                                } else {
+                                  setActionLog(`Error: ${res.error}`);
+                                }
+                              }
+                            } catch (err: any) {
+                              setActionLog(`Error: ${err.message}`);
+                            }
+                          }}
+                        >
+                          Draft Notes
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Store Application Name</label>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                        <input 
+                          type="text" 
+                          value={releaseAppName} 
+                          onChange={(e) => setReleaseAppName(e.target.value)} 
+                          style={{ flex: 1, padding: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', color: '#fff' }}
+                        />
+                        <button 
+                          className="btn-primary" 
+                          onClick={async () => {
+                            try {
+                              const registry = toolRegistry;
+                              const tool = registry.getTool('app_store_listing_draft');
+                              if (tool) {
+                                const res = await tool.execute({ appName: releaseAppName });
+                                if (res.success) {
+                                  setStoreListingDraftOutput(res.output);
+                                  setActionLog(`Drafted store listing metadata for "${releaseAppName}"`);
+                                } else {
+                                  setActionLog(`Error: ${res.error}`);
+                                }
+                              }
+                            } catch (err: any) {
+                              setActionLog(`Error: ${err.message}`);
+                            }
+                          }}
+                        >
+                          Draft Listing
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {releaseNotesDraftOutput && (
+                    <div style={{ marginTop: '12px' }}>
+                      <strong style={{ fontSize: '0.8rem', color: '#93c5fd' }}>📝 Release Notes Preview:</strong>
+                      <pre style={{ background: 'rgba(0,0,0,0.6)', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', overflowX: 'auto', whiteSpace: 'pre-wrap', color: '#93c5fd', marginTop: '6px', fontFamily: 'monospace' }}>
+                        {releaseNotesDraftOutput}
+                      </pre>
+                    </div>
+                  )}
+
+                  {storeListingDraftOutput && (
+                    <div style={{ marginTop: '12px' }}>
+                      <strong style={{ fontSize: '0.8rem', color: '#c084fc' }}>🌐 Store Listing Draft Preview:</strong>
+                      <pre style={{ background: 'rgba(0,0,0,0.6)', padding: '10px', borderRadius: '4px', fontSize: '0.75rem', overflowX: 'auto', whiteSpace: 'pre-wrap', color: '#c084fc', marginTop: '6px', fontFamily: 'monospace' }}>
+                        {storeListingDraftOutput}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* Audit Compilation Card */}
+                <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                  <h3>📊 Readiness Audit & Reports</h3>
+                  <p className="card-desc text-left font-small">Compile checklists and export deployment readiness report to simulated SSD storage.</p>
+                  
+                  <button 
+                    className="btn-primary" 
+                    style={{ width: '100%', marginTop: '12px', padding: '10px' }}
+                    onClick={async () => {
+                      try {
+                        const registry = toolRegistry;
+                        const tool = registry.getTool('app_release_readiness_report');
+                        if (tool) {
+                          const res = await tool.execute({ projectPath: '/Volumes/HP P500/Jarvis/02-projects/my-new-app' });
+                          if (res.success) {
+                            setReleaseReportOutputText(res.output);
+                            setActionLog(res.output);
+                            setRenderTrigger(prev => prev + 1);
+                          } else {
+                            setActionLog(`Error: ${res.error}`);
+                          }
+                        }
+                      } catch (err: any) {
+                        setActionLog(`Error: ${err.message}`);
+                      }
+                    }}
+                  >
+                    Compile Final Release Report
+                  </button>
+
+                  {releaseReportOutputText && (
+                    <div style={{ marginTop: '12px' }}>
+                      <strong style={{ fontSize: '0.8rem', color: '#34d399' }}>✅ Compilation Success:</strong>
+                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: '4px 0 0 0' }}>{releaseReportOutputText}</p>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '8px', padding: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px', marginTop: '16px' }}>
+                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                    <div style={{ fontSize: '0.75rem', color: '#fca5a5' }}>
+                      <strong>Automated Uploads Prohibited:</strong> Direct submissions to stores are blocked in version 1.2 to protect credentials. Store listing publishing remains strictly manual.
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -90,7 +90,7 @@ export class SafetyEngine {
       return true; // Exposing secrets is blocked by default
     }
 
-    if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set')) {
+    if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set') || trimmed.includes('app_store_upload')) {
       return true;
     }
 
@@ -135,7 +135,7 @@ export class SafetyEngine {
       return 'low'; // search web and local project dashboard is low risk
     }
 
-    if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set')) {
+    if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set') || trimmed.includes('app_store_upload')) {
       return 'blocked';
     }
 
@@ -147,7 +147,9 @@ export class SafetyEngine {
       return 'high';
     }
 
-    if (trimmed.includes('github_create_issue') || trimmed.includes('github_create_issue_draft')) {
+    if (trimmed.includes('github_create_issue') || trimmed.includes('github_create_issue_draft') || 
+        trimmed.includes('app_release_readiness_report') || trimmed.includes('app_release_notes_draft') || 
+        trimmed.includes('app_store_listing_draft')) {
       return 'medium';
     }
 

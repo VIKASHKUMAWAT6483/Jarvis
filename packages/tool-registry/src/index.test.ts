@@ -8,7 +8,7 @@ import { StorageManager, SecretsManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
 import { ProjectManager } from '@jarvis/project-manager';
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, TerminalExecutor } from './index.js';
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor } from './index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1167,6 +1167,69 @@ describe('ToolRegistry FileTools Tests', () => {
     const logs = pm.getLogs('seo-audit');
     assert.ok(logs.length > 0);
     assert.ok(logs.some(l => l.event.includes('Registered plugin')));
+
+    cleanupSandbox();
+  });
+
+  test('14. App Store Release Assistant Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    // Mock storage & database
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const registry = new ToolRegistry();
+    const art = new AppReleaseToolsManager(storage, db, { fs, path });
+    art.registerAll(registry);
+
+    // Test 1: Generate release notes draft
+    const notesRes = await art.appReleaseNotesDraft('1.2.0');
+    assert.equal(notesRes.success, true);
+    assert.match(notesRes.output, /📝 APP RELEASE NOTES DRAFT/);
+    assert.match(notesRes.output, /Wake Word Activation/);
+
+    // Test 2: Generate store listing draft
+    const listingRes = await art.appStoreListingDraft('Jarvis AI');
+    assert.equal(listingRes.success, true);
+    assert.match(listingRes.output, /🌐 STORE LISTING METADATA DRAFT/);
+    assert.match(listingRes.output, /Jarvis AI - AI Coding Companion/);
+
+    // Test 3: Generate readiness report and check file write
+    const reportRes = await art.appReleaseReadinessReport(path.join(mockExternal, 'flutter-app'));
+    assert.equal(reportRes.success, true);
+    assert.match(reportRes.output, /App Release Readiness Report successfully compiled/);
+
+    // Verify report exists on simulated SSD path: /Volumes/HP P500/Jarvis/05-reports/app-release/Jarvis-v1.2-APP_RELEASE_READINESS_REPORT.md
+    const reportFilePath = '/Volumes/HP P500/Jarvis/05-reports/app-release/Jarvis-v1.2-APP_RELEASE_READINESS_REPORT.md';
+    assert.ok(fs.existsSync(reportFilePath));
+    const reportText = fs.readFileSync(reportFilePath, 'utf8');
+    assert.match(reportText, /# Jarvis App Store Release Readiness Audit Report/);
+    assert.match(reportText, /Google Play Store Readiness Checklist/);
+    assert.match(reportText, /Apple App Store Readiness Checklist/);
+
+    // Test 4: Critical upload block
+    const uploadRes = await art.appStoreUpload(path.join(mockExternal, 'build.aab'));
+    assert.equal(uploadRes.success, false);
+    assert.match(uploadRes.error || '', /Automated store uploads are disabled/);
+
+    // Verify logs
+    const logs = db.getCommands();
+    assert.ok(logs.some(l => l.tool_name === 'app_release_readiness_report'));
 
     cleanupSandbox();
   });

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { StorageManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, MultiProjectToolsManager, GithubToolsManager, TerminalExecutor } from '@jarvis/tool-registry';
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, MultiProjectToolsManager, GithubToolsManager, AppReleaseToolsManager, TerminalExecutor } from '@jarvis/tool-registry';
 import { ProjectManager } from '@jarvis/project-manager';
 import { AgentCore } from './index.js';
 
@@ -291,6 +291,47 @@ describe('AgentCore Text Assistant Tests', () => {
     assert.equal(res.toolCalled, 'github_create_pr_draft');
     assert.equal(res.approvalRequired, true);
     assert.equal(res.riskLevel, 'high');
+
+    cleanupSandbox();
+  });
+
+  test('7. App Store Release Assistant Intent Routing', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const safety = new SafetyEngine();
+    const tools = new ToolRegistry();
+    const art = new AppReleaseToolsManager(storage, db, { fs, path });
+    art.registerAll(tools);
+
+    const agent = new AgentCore(storage, safety, tools);
+
+    // Ask to generate release report (medium risk, executed directly)
+    const prompt = 'Jarvis, release report generate karo';
+    const res = await agent.handleUserPrompt(prompt, {
+      activeProjectPath: path.join(mockExternal, 'proj-1')
+    });
+
+    assert.equal(res.toolCalled, 'app_release_readiness_report');
+    assert.match(res.reply, /App Release Readiness Report successfully compiled/);
+    assert.equal(res.approvalRequired, undefined);
 
     cleanupSandbox();
   });

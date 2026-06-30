@@ -312,6 +312,30 @@ export class AgentCore {
         }
       };
     }
+
+    // 21. App Release Readiness Report
+    if (p.includes('release readiness report') || p.includes('release report') || p.includes('app_release_readiness_report')) {
+      return {
+        toolName: 'app_release_readiness_report',
+        args: { projectPath: activePath || '/Volumes/HP P500/Jarvis/02-projects/my-new-app' }
+      };
+    }
+
+    // 22. App Release Notes Draft
+    if (p.includes('release notes draft') || p.includes('draft release notes') || p.includes('app_release_notes_draft')) {
+      return {
+        toolName: 'app_release_notes_draft',
+        args: { version: '1.2.0' }
+      };
+    }
+
+    // 23. App Store Listing Draft
+    if (p.includes('store listing draft') || p.includes('draft store listing') || p.includes('app_store_listing_draft')) {
+      return {
+        toolName: 'app_store_listing_draft',
+        args: { appName: 'Jarvis AI' }
+      };
+    }
  
     return { toolName: null, args: {} };
   }
