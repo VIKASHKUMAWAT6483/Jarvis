@@ -104,6 +104,10 @@ function App() {
   // Error Diagnostics states
   const [activeDiagnosticError, setActiveDiagnosticError] = useState<any | null>(null);
 
+  // Update Checker states
+  const [updateManifest, setUpdateManifest] = useState<any | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState<boolean>(false);
+
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
   const [isOpenaiKeySaved, setIsOpenaiKeySaved] = useState(false);
@@ -1936,6 +1940,87 @@ function App() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                <div className="settings-card text-left" style={{ borderLeft: '4px solid #3b82f6' }}>
+                  <h3>🛡️ Settings &gt; Updates Console</h3>
+                  <p className="card-desc text-left font-small">Scan for system update packets and compliance releases.</p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="label">Current version:</span>
+                      <strong className="value font-mono">1.1.0-dev</strong>
+                    </div>
+
+                    {/* Local update manifest loader */}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                      <button 
+                        className="btn-primary font-small"
+                        onClick={() => {
+                          try {
+                            const manifestPath = '/Volumes/HP P500/Jarvis/01-source-code/jarvis-ai/docs/update-manifest.json';
+                            if (mockFs.existsSync(manifestPath)) {
+                              const content = mockFs.readFileSync(manifestPath, 'utf8');
+                              const manifest = JSON.parse(content);
+                              setUpdateManifest(manifest);
+                              setActionLog(`Successfully fetched update details for version ${manifest.latest_version}.`);
+                              
+                              if (manifest.latest_version !== '1.1.0-dev') {
+                                setUpdateAvailable(true);
+                              }
+                            } else {
+                              setActionLog(`Error: Manifest not found at docs/update-manifest.json`);
+                            }
+                          } catch (err: any) {
+                            setActionLog(`Fetch failed: ${err.message}`);
+                          }
+                        }}
+                      >
+                        🔎 Check for Updates
+                      </button>
+                    </div>
+
+                    {updateAvailable && updateManifest && (
+                      <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid #3b82f6', borderRadius: '6px', padding: '12px', marginTop: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                          <span>🚀</span> A new update (v{updateManifest.latest_version}) is available!
+                        </div>
+                        <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '4px 0 8px 0' }}>Released on: {updateManifest.release_date}</p>
+                        
+                        <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px', fontSize: '0.7rem', color: '#cbd5e1', marginBottom: '8px' }}>
+                          <strong>Release Notes:</strong><br/>
+                          {updateManifest.release_notes}
+                          {updateManifest.migration_notes && (
+                            <div style={{ marginTop: '6px', color: '#fbbf24' }}>
+                              <strong>Migration Warning:</strong> {updateManifest.migration_notes}
+                            </div>
+                          )}
+                        </div>
+
+                        {updateManifest.required_backup && (
+                          <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontSize: '0.7rem', padding: '6px 8px', borderRadius: '4px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>⚠️</span> <strong>Reminders:</strong> Running settings backup is required before running this update.
+                          </div>
+                        )}
+
+                        <button 
+                          className="btn-primary font-small"
+                          onClick={() => {
+                            try {
+                              const backupPath = backupManager.exportSettings();
+                              setActionLog(`Pre-update safety backup saved. Download path to update packet DMG: ${updateManifest.download_path}`);
+                              setUpdateAvailable(false);
+                            } catch (err: any) {
+                              setActionLog(`Pre-update backup failed: ${err.message}`);
+                            }
+                          }}
+                          style={{ background: '#10b981', border: 'none' }}
+                        >
+                          📥 Run Safe Backup &amp; Get Update DMG
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

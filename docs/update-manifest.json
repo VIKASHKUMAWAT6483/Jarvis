@@ -1,0 +1,8 @@
+{
+  "latest_version": "1.2.0",
+  "release_date": "2026-07-01",
+  "release_notes": "Includes voice reliability upgrades, command templates support, report formatting exports, project health score index, daily briefings console, and pre-action backup protections.",
+  "download_path": "/Volumes/HP P500/Jarvis/04-builds/v1.2-alpha/jarvis-v1.2.dmg",
+  "required_backup": true,
+  "migration_notes": "Take a secure settings export backup and SQLite database backup before running the setup updater script."
+}
