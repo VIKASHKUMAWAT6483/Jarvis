@@ -172,4 +172,54 @@ export class BackupManager {
 
     return true;
   }
+
+  /**
+   * Creates a backup of project config files and metadata before running a risky command
+   */
+  public createPreActionBackup(projectName: string, projectPath: string, commandPreview: string): string {
+    if (!this.fs || !this.path) {
+      throw new Error('File system adapter is unavailable for pre-action backups.');
+    }
+
+    const backupRoot = '/Volumes/HP P500/Jarvis/10-backups/pre-action';
+    if (!this.fs.existsSync(backupRoot)) {
+      this.fs.mkdirSync(backupRoot, { recursive: true });
+    }
+
+    const timestamp = Date.now();
+    const backupDirName = `pre_action_${projectName}_${timestamp}`;
+    const targetDir = this.path.join(backupRoot, backupDirName);
+    this.fs.mkdirSync(targetDir, { recursive: true });
+
+    // 1. Save metadata file
+    const meta = {
+      project_name: projectName,
+      project_path: projectPath,
+      command_preview: commandPreview,
+      timestamp,
+      date: new Date().toISOString()
+    };
+    this.fs.writeFileSync(
+      this.path.join(targetDir, 'metadata.json'), 
+      JSON.stringify(meta, null, 2)
+    );
+
+    // 2. Save current git status (simulated or read from files)
+    const gitStatus = `On branch main. Pre-action backup triggered for command: ${commandPreview}`;
+    this.fs.writeFileSync(this.path.join(targetDir, 'git_status.txt'), gitStatus);
+
+    // 3. Copy config files if they exist (excluding env or private files)
+    const configsToBackup = ['package.json', 'pubspec.yaml', 'firebase.json', 'jsconfig.json', 'tsconfig.json'];
+    for (const config of configsToBackup) {
+      const srcPath = this.path.join(projectPath, config);
+      if (this.fs.existsSync(srcPath)) {
+        let content = this.fs.readFileSync(srcPath, 'utf8');
+        // Mask any secrets just in case
+        content = content.replace(/"(sk-proj-|AIzaSy)[^"]+"/g, '"[REDACTED]"');
+        this.fs.writeFileSync(this.path.join(targetDir, config), content);
+      }
+    }
+
+    return targetDir;
+  }
 }

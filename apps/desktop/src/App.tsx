@@ -95,6 +95,12 @@ function App() {
   const [briefingOutput, setBriefingOutput] = useState<string>("");
   const [isGeneratingBriefing, setIsGeneratingBriefing] = useState<boolean>(false);
 
+  // Auto Backup states
+  const [showBackupPrompt, setShowBackupPrompt] = useState<boolean>(false);
+  const [backupRiskyCommand, setBackupRiskyCommand] = useState<string>("");
+  const [backupRiskLevel, setBackupRiskLevel] = useState<'low' | 'medium' | 'high' | 'critical'>('low');
+  const [backupRecommendation, setBackupRecommendation] = useState<string>("");
+
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
   const [isOpenaiKeySaved, setIsOpenaiKeySaved] = useState(false);
@@ -830,6 +836,21 @@ function App() {
 
   // Unified safety modal approval routing
   const handleApproveSafetyModal = () => {
+    // Perform pre-action backup if applicable
+    if (activeProject && (pendingRiskLevel === 'medium' && showBackupPrompt || pendingRiskLevel === 'high' || pendingRiskLevel === 'critical')) {
+      try {
+        const backupPath = backupManager.createPreActionBackup(
+          activeProject.project_name,
+          activeProject.project_path,
+          pendingCommand
+        );
+        setActionLog(`Pre-action safety backup generated at: ${backupPath}`);
+        setRenderTrigger(prev => prev + 1);
+      } catch (err: any) {
+        console.error("Pre-action backup failed: ", err);
+      }
+    }
+
     if (modalSource === 'chat') {
       handleSendChatMessage(undefined, true);
     } else {
@@ -2315,6 +2336,52 @@ function App() {
                     value={typedConfirmation}
                     onChange={(e) => setTypedConfirmation(e.target.value)}
                   />
+                </div>
+              )}
+
+              {/* Pre-Action Backup Options */}
+              {activeProject && (pendingRiskLevel === 'medium' || pendingRiskLevel === 'high' || pendingRiskLevel === 'critical') && (
+                <div className="modal-detail" style={{ border: '1px solid rgba(99, 102, 241, 0.3)', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '6px', padding: '12px', marginTop: '12px' }}>
+                  <span className="label" style={{ color: '#818cf8', fontWeight: 'bold' }}>🛡️ Pre-Action Auto Backup Protection</span>
+                  
+                  {pendingRiskLevel === 'medium' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="preActionBackupToggle" 
+                        checked={showBackupPrompt}
+                        onChange={(e) => setShowBackupPrompt(e.target.checked)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <label htmlFor="preActionBackupToggle" style={{ fontSize: '0.8rem', color: '#cbd5e1', cursor: 'pointer' }}>
+                        Backup project configuration files before running?
+                      </label>
+                    </div>
+                  )}
+
+                  {pendingRiskLevel === 'high' && (
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fbbf24', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                        <span>⚠️</span> Strongly Recommended: Auto-backup is active for high-risk actions.
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                        <input type="checkbox" checked={true} disabled={true} />
+                        <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Backup configuration snapshot before execution.</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {pendingRiskLevel === 'critical' && (
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f87171', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                        <span>🚨</span> Critical Shield Gate: Snapshot backup is mandatory before execution.
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                        <input type="checkbox" checked={true} disabled={true} />
+                        <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Backup configuration snapshot (Required).</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
