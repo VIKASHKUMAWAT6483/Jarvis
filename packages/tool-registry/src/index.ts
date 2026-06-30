@@ -2,6 +2,7 @@ import { StorageManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { TerminalExecutor } from './terminal-executor.js';
 export * from './terminal-executor.js';
+export * from './templates.js';
 
 export interface ToolResult {
   success: boolean;

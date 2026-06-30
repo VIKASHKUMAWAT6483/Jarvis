@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -17,7 +17,7 @@ interface SimulatedFsState {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<"home" | "projects" | "storage" | "logs" | "approvals">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "projects" | "storage" | "logs" | "approvals" | "templates">("home");
   const [renderTrigger, setRenderTrigger] = useState(0);
   
   // Simulated storage state
@@ -78,6 +78,12 @@ function App() {
   const [voiceResponseSpeed, setVoiceResponseSpeed] = useState<'normal' | 'fast'>('normal');
   const [preferredLanguage, setPreferredLanguage] = useState<'hinglish' | 'hindi' | 'english'>('hinglish');
   const [voiceStatus, setVoiceStatus] = useState<'Listening' | 'Processing' | 'Tool running' | 'Waiting for approval' | 'Completed' | 'Failed' | 'idle'>('idle');
+
+  // Command Templates states
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("flutter_app_audit");
+  const [templateOutput, setTemplateOutput] = useState<string>("");
+  const [showTemplatePreview, setShowTemplatePreview] = useState<boolean>(false);
+  const [isTemplateRunning, setIsTemplateRunning] = useState<boolean>(false);
 
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
@@ -304,7 +310,14 @@ function App() {
       path: simpleMockPath
     });
   }, [storageManager, databaseManager, mockFs, simpleMockPath]);
+  // Instantiate TemplateManager
+  const templateManager = useMemo(() => {
+    return new TemplateManager(toolRegistry);
+  }, [toolRegistry]);
 
+  const templatesList = useMemo(() => {
+    return templateManager.getTemplates();
+  }, [templateManager]);
   // Sync React states to VoiceService settings
   useEffect(() => {
     voiceService.setSettings({
@@ -594,6 +607,43 @@ function App() {
   const handleOpenBackupsDir = () => {
     setActionLog("Opening database backups directory: /Volumes/HP P500/Jarvis/07-database-backups/");
     setTerminalLog("[FILE SYSTEM] Directory lookup: /Volumes/HP P500/Jarvis/07-database-backups/\n- jarvis-v0.5-backup.sqlite\n- database snapshot logs");
+  };
+
+  // Command Templates Executor handler
+  const handleRunTemplate = async (templateId: string, forceExecute: boolean = false) => {
+    const template = templatesList.find(t => t.template_id === templateId);
+    if (!template) return;
+
+    // Rules: If risk level is medium/high/critical, show preview and require approval before execution
+    if (template.risk_level !== 'low' && !forceExecute) {
+      setShowTemplatePreview(true);
+      setTemplateOutput(`⚠️ WARNING: This template "${template.title}" has a risk level of "${template.risk_level.toUpperCase()}".\n\nPreviewing commands scheduled to execute:\n${template.commands.map(cmd => ` - ${cmd}`).join('\n')}\n\nThis template will write reports to: ${template.output_location}\n\nPlease review and authorize by clicking "Approve & Execute Template" below.`);
+      return;
+    }
+
+    setIsTemplateRunning(true);
+    setTemplateOutput("Executing template workflow steps sequentially...\n");
+
+    try {
+      const activePath = activeProject ? activeProject.project_path : '';
+      const res = await templateManager.executeTemplate(templateId, {
+        projectPath: activePath
+      });
+
+      if (res.success) {
+        setTemplateOutput(res.output);
+        setChatMessages(prev => [...prev, { sender: 'jarvis', text: `Template "${template.title}" finished successfully. Output report saved.` }]);
+      } else {
+        setTemplateOutput(`Template execution failed.\n\nOutput log:\n${res.output}`);
+      }
+      setShowTemplatePreview(false);
+      setRenderTrigger(prev => prev + 1);
+    } catch (err: any) {
+      setTemplateOutput(`Error during template execution: ${err.message}`);
+      setShowTemplatePreview(false);
+    } finally {
+      setIsTemplateRunning(false);
+    }
   };
 
   // Terminal Runner CLI Submit handler
@@ -983,6 +1033,12 @@ function App() {
             onClick={() => setActiveTab("approvals")}
           >
             <span className="nav-icon">🛡️</span> Approvals
+          </button>
+          <button 
+            className={`nav-item ${activeTab === "templates" ? "active" : ""}`}
+            onClick={() => setActiveTab("templates")}
+          >
+            <span className="nav-icon">📋</span> Templates
           </button>
         </nav>
         <div className="sidebar-footer">
@@ -1629,6 +1685,109 @@ function App() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === "templates" ? (
+          <div className="viewport-page">
+            <header className="page-header">
+              <h1>Workflow Command Templates</h1>
+              <p>Execute multi-step developer operations and verify compliance logs.</p>
+            </header>
+
+            <div className="dashboard-grid" style={{ gap: '16px' }}>
+              {/* Template list card */}
+              <div className="settings-column">
+                <div className="settings-card text-left" style={{ margin: 0, padding: '16px', height: '100%' }}>
+                  <h3>📋 Available Workflow Templates</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                    {templatesList.map(t => (
+                      <div 
+                        key={t.template_id}
+                        onClick={() => {
+                          setSelectedTemplateId(t.template_id);
+                          setTemplateOutput("");
+                          setShowTemplatePreview(false);
+                        }}
+                        style={{ 
+                          padding: '12px', 
+                          borderRadius: '8px', 
+                          border: '1px solid var(--border-color)', 
+                          background: selectedTemplateId === t.template_id ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.02)', 
+                          cursor: 'pointer',
+                          borderColor: selectedTemplateId === t.template_id ? '#6366f1' : 'var(--border-color)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ color: '#fff', fontSize: '0.9rem' }}>{t.title}</strong>
+                          <span className={`badge risk-${t.risk_level}`} style={{ fontSize: '0.6rem', textTransform: 'uppercase' }}>
+                            {t.risk_level}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{t.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview and Execution details card */}
+              <div className="settings-column">
+                {(() => {
+                  const selectedTemp = templatesList.find(t => t.template_id === selectedTemplateId);
+                  if (!selectedTemp) return null;
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
+                      <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                        <h3>🔍 Template Preview &amp; Actions</h3>
+                        
+                        <div style={{ marginTop: '12px', fontSize: '0.8rem' }}>
+                          <div style={{ margin: '4px 0' }}><strong>Required Tools:</strong> <code style={{ color: '#818cf8' }}>{selectedTemp.required_tools.join(', ')}</code></div>
+                          <div style={{ margin: '4px 0' }}><strong>Output Location:</strong> <code style={{ color: 'var(--text-disabled)' }}>{selectedTemp.output_location}</code></div>
+                          <div style={{ margin: '4px 0' }}><strong>Expected Report:</strong> <code style={{ color: 'var(--accent-primary)' }}>{selectedTemp.expected_report_file}</code></div>
+                        </div>
+
+                        <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                          <strong>Workflow Commands scheduled to execute:</strong>
+                          <pre className="command-preview-box font-mono" style={{ margin: '8px 0', padding: '12px', background: 'rgba(0,0,0,0.5)', borderRadius: '6px', fontSize: '0.75rem', border: '1px solid var(--border-color)', color: '#fff' }}>
+                            {selectedTemp.commands.map(cmd => ` - ${cmd}`).join('\n')}
+                          </pre>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                          <button 
+                            className="btn-primary" 
+                            onClick={() => handleRunTemplate(selectedTemp.template_id, showTemplatePreview)}
+                            disabled={isTemplateRunning}
+                            style={{ padding: '10px 16px' }}
+                          >
+                            {isTemplateRunning ? "Running..." : (selectedTemp.risk_level !== 'low' && !showTemplatePreview ? "Preview & Run Template" : "Approve & Execute Template")}
+                          </button>
+                          {showTemplatePreview && (
+                            <button 
+                              className="btn-secondary" 
+                              onClick={() => {
+                                setShowTemplatePreview(false);
+                                setTemplateOutput("");
+                              }}
+                              style={{ padding: '10px 16px' }}
+                            >
+                              Deny Execution
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="settings-card console-card text-left" style={{ margin: 0, padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <h3>📋 Template Run Console Logs</h3>
+                        <pre className="console-output" style={{ flex: 1, margin: '8px 0 0 0', padding: '12px', background: 'rgba(0,0,0,0.6)', borderRadius: '6px', color: '#10b981', fontSize: '0.75rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', overflowY: 'auto', minHeight: '180px' }}>
+                          {templateOutput || "No template executed yet. Standing by."}
+                        </pre>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
