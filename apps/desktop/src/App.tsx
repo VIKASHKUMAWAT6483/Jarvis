@@ -1193,7 +1193,7 @@ function App() {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <p>Version 0.1.0-alpha</p>
+          <p>Version 1.1.0</p>
         </div>
       </aside>
 
@@ -1949,7 +1949,7 @@ function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span className="label">Current version:</span>
-                      <strong className="value font-mono">1.1.0-dev</strong>
+                      <strong className="value font-mono">1.1.0</strong>
                     </div>
 
                     {/* Local update manifest loader */}
@@ -1965,7 +1965,7 @@ function App() {
                               setUpdateManifest(manifest);
                               setActionLog(`Successfully fetched update details for version ${manifest.latest_version}.`);
                               
-                              if (manifest.latest_version !== '1.1.0-dev') {
+                              if (manifest.latest_version !== '1.1.0') {
                                 setUpdateAvailable(true);
                               }
                             } else {
