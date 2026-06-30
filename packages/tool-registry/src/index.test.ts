@@ -8,7 +8,7 @@ import { StorageManager, SecretsManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
 import { ProjectManager } from '@jarvis/project-manager';
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor } from './index.js';
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor, ScheduledMonitoringToolsManager } from './index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1230,6 +1230,83 @@ describe('ToolRegistry FileTools Tests', () => {
     // Verify logs
     const logs = db.getCommands();
     assert.ok(logs.some(l => l.tool_name === 'app_release_readiness_report'));
+
+    cleanupSandbox();
+  });
+
+  test('15. Scheduled Monitoring Tools Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    // Set mock path variables
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const pm = new ProjectManager(storage, db, { fs, path });
+
+    const sm = new ScheduledMonitoringToolsManager(storage, db, pm, { fs, path });
+
+    // 1. Get default config (should succeed and return initial defaults)
+    const getRes = await sm.getConfig();
+    assert.equal(getRes.success, true);
+    const parsed = JSON.parse(getRes.output);
+    assert.equal(parsed.enabled, false);
+    assert.equal(parsed.checks.project_health, false);
+
+    // 2. Save config (enable it and turn on health/storage/git status checks)
+    parsed.enabled = true;
+    parsed.checks.project_health = true;
+    parsed.checks.storage_status = true;
+    parsed.checks.git_status = true;
+    parsed.intervalHours = 12;
+
+    const saveRes = await sm.saveConfig(JSON.stringify(parsed));
+    assert.equal(saveRes.success, true);
+    assert.match(saveRes.output, /configuration updated/);
+
+    // Verify config file was written correctly
+    const configPath = '/Volumes/HP P500/Jarvis/05-reports/scheduled-monitoring/config.json';
+    assert.ok(fs.existsSync(configPath));
+    const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(savedConfig.enabled, true);
+    assert.equal(savedConfig.intervalHours, 12);
+    assert.equal(savedConfig.checks.project_health, true);
+
+    // 3. Run scheduled checks
+    const runRes = await sm.runChecks();
+    assert.equal(runRes.success, true);
+    assert.match(runRes.output, /Scheduled checks completed/);
+
+    // Verify reports and runs logs are written
+    const reportPath = '/Volumes/HP P500/Jarvis/05-reports/scheduled-monitoring/Jarvis-v1.3-SCHEDULED_MONITORING_REPORT.md';
+    assert.ok(fs.existsSync(reportPath));
+    const reportContent = fs.readFileSync(reportPath, 'utf8');
+    assert.match(reportContent, /# Jarvis Scheduled Monitoring Report/);
+    assert.match(reportContent, /Project Health Check/);
+    assert.match(reportContent, /Storage Status Check/);
+
+    const logPath = '/Volumes/HP P500/Jarvis/05-reports/scheduled-monitoring/monitoring_runs.log';
+    assert.ok(fs.existsSync(logPath));
+    const logContent = fs.readFileSync(logPath, 'utf8');
+    assert.match(logContent, /Checked runs. Status: SUCCESS/);
+
+    // 4. Verify telemetry logs
+    const telemetry = db.getCommands();
+    assert.ok(telemetry.some(t => t.tool_name === 'monitoring_run_checks'));
 
     cleanupSandbox();
   });
