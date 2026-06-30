@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url';
 import { StorageManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, TerminalExecutor } from '@jarvis/tool-registry';
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, MultiProjectToolsManager, TerminalExecutor } from '@jarvis/tool-registry';
+import { ProjectManager } from '@jarvis/project-manager';
 import { AgentCore } from './index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -200,6 +201,55 @@ describe('AgentCore Text Assistant Tests', () => {
     const res = await agent.handleUserPrompt('Jarvis, store this key: AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q');
     assert.match(res.reply, /Access denied/);
     assert.match(res.error || '', /Potential plain-text secret leak/);
+
+    cleanupSandbox();
+  });
+
+  test('5. Multi-Project Monitoring Intent Routing', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const safety = new SafetyEngine();
+    const pm = new ProjectManager(storage, db, { fs, path });
+    const tools = new ToolRegistry();
+    const mpt = new MultiProjectToolsManager(storage, db, pm, { fs, path });
+    mpt.registerAll(tools);
+
+    const agent = new AgentCore(storage, safety, tools);
+
+    // Mock project path
+    const projPath = path.join(mockExternal, 'proj-watchlist-item');
+    fs.mkdirSync(projPath, { recursive: true });
+
+    // Add project first
+    await mpt.projectWatchlistAdd(projPath, 'WatchlistProj');
+
+    // Trigger on Hindi voice transcription intent check
+    const prompt = 'Jarvis, mere saare projects ka status batao.';
+    const res = await agent.handleUserPrompt(prompt, {
+      activeProjectPath: projPath
+    });
+
+    assert.equal(res.toolCalled, 'project_monitor_status');
+    assert.match(res.reply, /Executed tool "project_monitor_status" successfully/);
+    assert.match(res.reply, /WatchlistProj/);
 
     cleanupSandbox();
   });

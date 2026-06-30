@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -321,6 +321,10 @@ function App() {
       fs: mockFs,
       path: simpleMockPath
     });
+    const mpt = new MultiProjectToolsManager(storageManager, databaseManager, projectManager, {
+      fs: mockFs,
+      path: simpleMockPath
+    });
     ft.registerAll(registry);
     gt.registerAll(registry);
     bt.registerAll(registry);
@@ -329,8 +333,9 @@ function App() {
     msgCall.registerAll(registry);
     browser.registerAll(registry);
     gh.registerAll(registry);
+    mpt.registerAll(registry);
     return registry;
-  }, [storageManager, databaseManager, terminalExecutor, mockFs, simpleMockPath]);
+  }, [storageManager, databaseManager, projectManager, terminalExecutor, mockFs, simpleMockPath]);
 
   // Instantiate AgentCore (AI Text Assistant Mode)
   const agentCore = useMemo(() => {
@@ -1514,6 +1519,76 @@ function App() {
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Multi-Project Overview Dashboard Card */}
+                <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                  <h3>📊 Multi-Project Overview Watchlist</h3>
+                  <p className="card-desc text-left font-small" style={{ marginBottom: '10px' }}>
+                    Monitor status and health score updates across your watchlist. Pauses if SSD is unmounted.
+                  </p>
+                  
+                  {projectsList.length === 0 ? (
+                    <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-color)', borderRadius: '6px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-disabled)' }}>
+                      No projects registered in watchlist.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                      {projectsList.map(project => {
+                        let score = 100;
+                        let status = "Excellent";
+                        try {
+                          const info = projectManager.calculateProjectHealthScore(project.project_path);
+                          score = info.score;
+                          status = info.status;
+                        } catch {
+                          const isInt = projectManager.isPathInternal(project.project_path);
+                          score = isInt ? 60 : 90;
+                          status = isInt ? "Needs Work" : "Excellent";
+                        }
+                        
+                        return (
+                          <div key={project.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '8px' }}>
+                              <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{project.project_name}</strong>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--text-disabled)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.project_path}</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span className="badge" style={{ fontSize: '0.65rem', background: '#3b82f6', color: '#fff' }}>{project.project_type.split(',')[0]}</span>
+                              <span className="badge" style={{ fontSize: '0.65rem', background: score >= 90 ? '#10b981' : score >= 75 ? '#3b82f6' : score >= 50 ? '#f59e0b' : '#ef4444', color: '#fff' }}>
+                                {score} HP
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <button 
+                      className="btn-primary font-small" 
+                      onClick={async () => {
+                        const res = await toolRegistry.getTool('project_monitor_status')?.execute({});
+                        if (res?.success) {
+                          setTerminalLog(prev => `${prev}\n[MONITOR] ${res.output}`);
+                          setRenderTrigger(prev => prev + 1);
+                        } else if (res?.error) {
+                          alert(`Error: ${res.error}`);
+                        }
+                      }}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      🔄 Run Telemetry Check
+                    </button>
+                    <button 
+                      className="btn-secondary font-small" 
+                      onClick={() => handleExecuteDevTool("play_store_readiness_audit")}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      📋 Play Store Readiness Check
+                    </button>
+                  </div>
                 </div>
 
                 {/* Audit Logs & Reports Links */}

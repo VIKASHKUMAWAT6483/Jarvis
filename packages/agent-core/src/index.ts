@@ -41,6 +41,14 @@ export class AgentCore {
       return { toolName: 'storage_status', args: {} };
     }
 
+    // 1.5. Multi-Project Monitoring Status
+    if (p.includes('saare projects') || p.includes('projects status') || p.includes('project_monitor_status')) {
+      return {
+        toolName: 'project_monitor_status',
+        args: {}
+      };
+    }
+
     // 2. Git read-only tools
     if (p.includes('git status') || p.includes('status batao') || p.includes('git status batao')) {
       return { toolName: 'git_status', args: { projectPath: activePath } };

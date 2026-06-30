@@ -12,7 +12,8 @@
   "dependencies": {
     "@jarvis/shared-types": "*",
     "@jarvis/storage-manager": "*",
-    "@jarvis/database-manager": "*"
+    "@jarvis/database-manager": "*",
+    "@jarvis/project-manager": "*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
