@@ -32,4 +32,16 @@ export declare class BackupManager {
      * Restores system configurations and SQLite database from backup package
      */
     restoreFromBackup(backupFolder: string): Promise<boolean>;
+    /**
+     * Creates a backup of project config files and metadata before running a risky command
+     */
+    createPreActionBackup(projectName: string, projectPath: string, commandPreview: string): string;
+    /**
+     * Exports safe configuration settings for migration (excluding secrets/keys)
+     */
+    exportSettings(): string;
+    /**
+     * Imports configuration settings from a safe backup file (validates & blocks secrets)
+     */
+    importSettings(exportFilePath: string): boolean;
 }

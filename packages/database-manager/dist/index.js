@@ -43,7 +43,8 @@ export class DatabaseManager {
                         commands: [],
                         approvals: [],
                         storage_events: [],
-                        project_profiles: []
+                        project_profiles: [],
+                        health_scores: []
                     };
                     this.fs.writeFileSync(dbPath, JSON.stringify(emptySchema, null, 2));
                 }
@@ -230,5 +231,33 @@ export class DatabaseManager {
             this.logStorageEvent('DATABASE_BACKUP', `Database backed up successfully to: ${backupPath}`);
         }
         return backupPath;
+    }
+    /**
+     * Logs a project health score check
+     */
+    logHealthScore(record) {
+        if (!this.isReady()) {
+            throw new Error('Database is offline. Operation blocked.');
+        }
+        const data = this.readDatabase();
+        if (!data.health_scores)
+            data.health_scores = [];
+        const newRecord = {
+            id: `health_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: Date.now(),
+            ...record
+        };
+        data.health_scores.push(newRecord);
+        this.writeDatabase(data);
+        return newRecord;
+    }
+    /**
+     * Retrieves all health score checks
+     */
+    getHealthScores() {
+        if (!this.isReady())
+            return [];
+        const data = this.readDatabase();
+        return data.health_scores || [];
     }
 }

@@ -4,6 +4,13 @@ export interface VoiceServiceSettings {
     voiceEnabled: boolean;
     audioCacheEnabled: boolean;
     language: 'hinglish' | 'hindi' | 'english';
+    autoRetryVoiceOnce: boolean;
+    voiceResponseSpeed: 'normal' | 'fast';
+    preferredLanguage: 'hinglish' | 'hindi' | 'english';
+    wakeWordEnabled: boolean;
+    wakePhrase: string;
+    wakeWordSensitivity: 'low' | 'medium' | 'high';
+    autoDisableOnHighCpu: boolean;
 }
 export declare class VoiceService {
     private storage;
@@ -11,6 +18,7 @@ export declare class VoiceService {
     private fs;
     private path;
     private settings;
+    private wakeWordStatus;
     constructor(storage: StorageManager, database: DatabaseManager, options?: {
         fs?: any;
         path?: any;
@@ -24,6 +32,21 @@ export declare class VoiceService {
      */
     getSettings(): VoiceServiceSettings;
     /**
+     * Retrieves wake word status
+     */
+    getWakeWordStatus(): 'off' | 'listening' | 'detected';
+    /**
+     * Sets wake word status
+     */
+    setWakeWordStatus(status: 'off' | 'listening' | 'detected'): void;
+    /**
+     * Monitor CPU usage. Auto-disables wake word if CPU > 85% and autoDisableOnHighCpu is true
+     */
+    monitorCpuUsage(cpuPercent: number): {
+        warning: string | null;
+        disabled: boolean;
+    };
+    /**
      * Resolves the target cache path for a voice synthesis file
      * dynamically located on the external SSD.
      */
@@ -31,7 +54,11 @@ export declare class VoiceService {
     /**
      * Simulates/Executes Voice-to-Text Speech Recognition and optionally saves audio log
      */
-    recordAndTranscribe(simulatedText?: string): Promise<string>;
+    recordAndTranscribe(options?: string | {
+        simulatedText?: string;
+        forceFailureOnce?: boolean;
+        forceFailureAlways?: boolean;
+    }): Promise<string>;
     /**
      * Synthesizes audio using native browser TTS or simulated TTS and optionally caches output
      */

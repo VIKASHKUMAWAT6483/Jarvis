@@ -34,4 +34,18 @@ export declare class ProjectManager {
      * Triggers developer quick actions for the active project
      */
     executeQuickAction(action: 'cursor' | 'vscode' | 'finder' | 'git_status'): Promise<string>;
+    /**
+     * Calculates a project health score from 0 to 100 based on 10 telemetry categories
+     */
+    calculateProjectHealthScore(projectPath: string): {
+        score: number;
+        status: 'Excellent' | 'Good' | 'Needs Work' | 'Risky';
+        breakdown: Record<string, {
+            score: number;
+            status: string;
+            detail: string;
+        }>;
+        topIssues: string[];
+        recommendedAction: string;
+    };
 }

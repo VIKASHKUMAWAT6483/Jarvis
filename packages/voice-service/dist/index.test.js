@@ -114,4 +114,42 @@ describe('VoiceService Mappings & Cache Tests', () => {
         assert.equal(text, "Hello");
         cleanupSandbox();
     });
+    test('4. Wake Word Statuses and CPU Safety Alerts', async () => {
+        setupSandbox();
+        const mockExternal = path.join(sandboxDir, 'mock-external');
+        const mockInternal = path.join(sandboxDir, 'mock-internal');
+        fs.mkdirSync(mockExternal, { recursive: true });
+        fs.mkdirSync(mockInternal, { recursive: true });
+        const storage = new StorageManager({
+            externalRoot: mockExternal,
+            internalRoot: mockInternal,
+            allowTemporaryInternalMode: false,
+            fs, path, os
+        });
+        storage.ensureJarvisFolders();
+        const db = new DatabaseManager(storage, { fs, path });
+        db.initialize();
+        const voice = new VoiceService(storage, db, { fs, path });
+        // 1. Verify default: wake word is OFF
+        assert.equal(voice.getSettings().wakeWordEnabled, false);
+        assert.equal(voice.getWakeWordStatus(), 'off');
+        // 2. Enable wake word manually
+        voice.setSettings({ wakeWordEnabled: true });
+        assert.equal(voice.getSettings().wakeWordEnabled, true);
+        // 3. Toggle statuses
+        voice.setWakeWordStatus('listening');
+        assert.equal(voice.getWakeWordStatus(), 'listening');
+        voice.setWakeWordStatus('detected');
+        assert.equal(voice.getWakeWordStatus(), 'detected');
+        // 4. CPU usage warning trigger and auto-disable
+        const resNormal = voice.monitorCpuUsage(45);
+        assert.equal(resNormal.disabled, false);
+        assert.equal(voice.getSettings().wakeWordEnabled, true);
+        const resHigh = voice.monitorCpuUsage(90);
+        assert.equal(resHigh.disabled, true);
+        assert.ok(resHigh.warning?.includes("auto-disabled"));
+        assert.equal(voice.getSettings().wakeWordEnabled, false);
+        assert.equal(voice.getWakeWordStatus(), 'off');
+        cleanupSandbox();
+    });
 });

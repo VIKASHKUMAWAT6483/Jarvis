@@ -1,4 +1,8 @@
 export * from './terminal-executor.js';
+export * from './templates.js';
+export * from './reports.js';
+export * from './briefing.js';
+export * from './errors.js';
 export class ToolRegistry {
     tools = new Map();
     registerTool(tool) {

@@ -30,11 +30,21 @@ export interface ProjectProfileRecord {
     created_at: number;
     updated_at: number;
 }
+export interface HealthScoreRecord {
+    id: string;
+    timestamp: number;
+    project_name: string;
+    health_score: number;
+    status: 'Excellent' | 'Good' | 'Needs Work' | 'Risky';
+    top_issues: string;
+    recommended_action: string;
+}
 export interface DatabaseSchema {
     commands: CommandRecord[];
     approvals: ApprovalRecord[];
     storage_events: StorageEventRecord[];
     project_profiles: ProjectProfileRecord[];
+    health_scores?: HealthScoreRecord[];
 }
 export declare class DatabaseManager {
     private storage;
@@ -102,4 +112,12 @@ export declare class DatabaseManager {
      * Backs up the SQLite database to the dedicated backups directory
      */
     backupDatabase(): string;
+    /**
+     * Logs a project health score check
+     */
+    logHealthScore(record: Omit<HealthScoreRecord, 'id' | 'timestamp'>): HealthScoreRecord;
+    /**
+     * Retrieves all health score checks
+     */
+    getHealthScores(): HealthScoreRecord[];
 }
