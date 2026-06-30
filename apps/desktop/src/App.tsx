@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics, ScheduledMonitoringToolsManager } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics, ScheduledMonitoringToolsManager, WordPressSeoToolsManager } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -361,6 +361,10 @@ function App() {
       fs: mockFs,
       path: simpleMockPath
     });
+    const wps = new WordPressSeoToolsManager(storageManager, databaseManager, {
+      fs: mockFs,
+      path: simpleMockPath
+    });
     ft.registerAll(registry);
     gt.registerAll(registry);
     bt.registerAll(registry);
@@ -372,6 +376,7 @@ function App() {
     mpt.registerAll(registry);
     art.registerAll(registry);
     smt.registerAll(registry);
+    wps.registerAll(registry);
     return registry;
   }, [storageManager, databaseManager, projectManager, terminalExecutor, mockFs, simpleMockPath]);
 

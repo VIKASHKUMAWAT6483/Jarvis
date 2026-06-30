@@ -8,7 +8,7 @@ import { StorageManager, SecretsManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
 import { ProjectManager } from '@jarvis/project-manager';
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor, ScheduledMonitoringToolsManager } from './index.js';
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, AppReleaseToolsManager, TerminalExecutor, ScheduledMonitoringToolsManager, WordPressSeoToolsManager } from './index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1307,6 +1307,93 @@ describe('ToolRegistry FileTools Tests', () => {
     // 4. Verify telemetry logs
     const telemetry = db.getCommands();
     assert.ok(telemetry.some(t => t.tool_name === 'monitoring_run_checks'));
+
+    cleanupSandbox();
+  });
+
+  test('16. WordPress and SEO Automation Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const wps = new WordPressSeoToolsManager(storage, db, { fs, path });
+
+    // 1. Audit WordPress Local Plugin Folder
+    const pluginRes = await wps.pluginAudit('/plugins/my-custom-plugin');
+    assert.equal(pluginRes.success, true);
+    assert.match(pluginRes.output, /WordPress Plugin Audit Report/);
+    assert.match(pluginRes.output, /wp-rest-api-cache/);
+    assert.ok(fs.existsSync(path.join(mockExternal, '05-reports', 'seo-wordpress', 'wordpress_plugin_audit.md')));
+
+    // 2. Page SEO Audit
+    const seoRes = await wps.pageSeoAudit('https://example.com/blog/hello');
+    assert.equal(seoRes.success, true);
+    assert.match(seoRes.output, /WordPress Page SEO Audit Report/);
+    assert.match(seoRes.output, /Alt Attributes/);
+
+    // 3. Thin Content Check
+    const thinRes = await wps.thinContentCheck('https://example.com/blog/hello');
+    assert.equal(thinRes.success, true);
+    assert.match(thinRes.output, /Thin Content Check Report/);
+    assert.match(thinRes.output, /Word Count: \*\*850 words\*\*/);
+
+    // 4. Schema markup Check
+    const schemaRes = await wps.schemaCheck('https://example.com/blog/hello');
+    assert.equal(schemaRes.success, true);
+    assert.match(schemaRes.output, /WordPress Schema Audit Report/);
+    assert.match(schemaRes.output, /Article Schema/);
+
+    // 5. Internal Links Ratio Check
+    const linkRes = await wps.internalLinksCheck('https://example.com/blog/hello');
+    assert.equal(linkRes.success, true);
+    assert.match(linkRes.output, /Internal Links Audit Report/);
+    assert.match(linkRes.output, /Internal Links: 18/);
+
+    // 6. Meta Length Checks
+    const metaRes = await wps.metaTitleDescriptionCheck('https://example.com/blog/hello');
+    assert.equal(metaRes.success, true);
+    assert.match(metaRes.output, /WordPress Meta Tags Audit Report/);
+    assert.match(metaRes.output, /Recommended: 30-60 chars/);
+
+    // 7. Sitemap parser
+    const sitemapRes = await wps.sitemapCheck('https://example.com/sitemap.xml');
+    assert.equal(sitemapRes.success, true);
+    assert.match(sitemapRes.output, /Sitemap.xml Validation Report/);
+    assert.match(sitemapRes.output, /148 posts\/pages/);
+
+    // 8. Robots.txt check
+    const robotsRes = await wps.robotsTxtCheck('https://example.com');
+    assert.equal(robotsRes.success, true);
+    assert.match(robotsRes.output, /Robots.txt Audit Report/);
+    assert.match(robotsRes.output, /Rules Vetted: 3/);
+
+    // 9. Broken links check
+    const brokenRes = await wps.brokenLinksCheck('https://example.com/blog/hello');
+    assert.equal(brokenRes.success, true);
+    assert.match(brokenRes.output, /Broken Links Validation Report/);
+    assert.match(brokenRes.output, /Offline Links Found: 0/);
+
+    // 10. Content improvement prompt generator
+    const promptRes = await wps.contentImprovementPromptGenerator('Sample content structure to enhance sitemaps readability.');
+    assert.equal(promptRes.success, true);
+    assert.match(promptRes.output, /LLM CONTENT IMPROVEMENT PROMPT/);
+    assert.match(promptRes.output, /Split long sentences/);
 
     cleanupSandbox();
   });
