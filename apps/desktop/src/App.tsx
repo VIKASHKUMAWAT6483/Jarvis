@@ -74,6 +74,10 @@ function App() {
   const [audioCacheEnabled, setAudioCacheEnabled] = useState(false);
   const [voiceLanguage, setVoiceLanguage] = useState<'hinglish' | 'hindi' | 'english'>('hinglish');
   const [isRecording, setIsRecording] = useState(false);
+  const [autoRetryVoiceOnce, setAutoRetryVoiceOnce] = useState(true);
+  const [voiceResponseSpeed, setVoiceResponseSpeed] = useState<'normal' | 'fast'>('normal');
+  const [preferredLanguage, setPreferredLanguage] = useState<'hinglish' | 'hindi' | 'english'>('hinglish');
+  const [voiceStatus, setVoiceStatus] = useState<'Listening' | 'Processing' | 'Tool running' | 'Waiting for approval' | 'Completed' | 'Failed' | 'idle'>('idle');
 
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
@@ -306,9 +310,12 @@ function App() {
     voiceService.setSettings({
       voiceEnabled,
       audioCacheEnabled,
-      language: voiceLanguage
+      language: preferredLanguage, // backward compatibility
+      autoRetryVoiceOnce,
+      voiceResponseSpeed,
+      preferredLanguage
     });
-  }, [voiceEnabled, audioCacheEnabled, voiceLanguage, voiceService]);
+  }, [voiceEnabled, audioCacheEnabled, preferredLanguage, autoRetryVoiceOnce, voiceResponseSpeed, voiceService]);
 
   // Instantiate SecretsManager
   const secretsManager = useMemo(() => {
@@ -693,16 +700,19 @@ function App() {
   const handleTriggerVoiceRecording = async () => {
     if (isRecording) return;
     setIsRecording(true);
+    setVoiceStatus('Listening');
     
     setChatMessages(prev => [...prev, { sender: 'jarvis', text: '🎤 Recording voice input... Speak now!' }]);
 
     setTimeout(async () => {
       setIsRecording(false);
+      setVoiceStatus('Processing');
       try {
         const transcribedText = await voiceService.recordAndTranscribe();
         setChatMessages(prev => [...prev, { sender: 'user', text: `🗣️ [Voice Input]: "${transcribedText}"` }]);
         
         const activePath = activeProject ? activeProject.project_path : '';
+        setVoiceStatus('Tool running');
         
         const res = await agentCore.handleUserPrompt(transcribedText, {
           activeProjectPath: activePath
@@ -714,10 +724,12 @@ function App() {
           setPendingExplanation(res.explanation || "");
           setModalSource('chat');
           setShowApprovalModal(true);
+          setVoiceStatus('Waiting for approval');
           setChatMessages(prev => [...prev, { sender: 'jarvis', text: `Safety Gate triggered for command: "${res.pendingCommand}". Awaiting your approval in the popup...` }]);
         } else {
           setChatMessages(prev => [...prev, { sender: 'jarvis', text: res.reply }]);
           await voiceService.playVoiceMessage(res.reply);
+          setVoiceStatus('Completed');
           
           setShowApprovalModal(false);
           setPendingCommand("");
@@ -725,7 +737,11 @@ function App() {
         }
         setRenderTrigger(prev => prev + 1);
       } catch (err: any) {
+        setVoiceStatus('Failed');
         setChatMessages(prev => [...prev, { sender: 'jarvis', text: `Voice Mode Error: ${err.message}` }]);
+        // 4. Add fallback: Automatically put transcript into text command box for editing.
+        const fallbackText = err.transcriptionAttempt || "Jarvis, current project ka git status batao";
+        setChatInput(fallbackText);
       }
     }, 2000);
   };
@@ -1206,6 +1222,12 @@ function App() {
                     </button>
                     <button type="submit" className="btn-primary" style={{ padding: '10px 18px' }}>Send</button>
                   </form>
+                  {voiceStatus && voiceStatus !== 'idle' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', marginTop: '6px', color: '#9ca3af' }}>
+                      <span className={`status-indicator status-${voiceStatus.toLowerCase().replace(/ /g, '-')}`} style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: voiceStatus === 'Failed' ? '#ef4444' : voiceStatus === 'Completed' ? '#10b981' : '#3b82f6' }} />
+                      Voice Status: <strong style={{ color: '#fff' }}>{voiceStatus}</strong>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1461,6 +1483,52 @@ function App() {
                       <button type="submit">Update Path</button>
                     </div>
                   </form>
+                </div>
+
+                <div className="settings-card text-left">
+                  <h3>🎙️ Voice Settings &amp; Reliability Options</h3>
+                  
+                  <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
+                    <div className="toggle-label">
+                      <strong>Auto Retry Voice Transcription</strong>
+                      <p>Retry transcription once automatically if service times out.</p>
+                    </div>
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        checked={autoRetryVoiceOnce}
+                        onChange={(e) => setAutoRetryVoiceOnce(e.target.checked)}
+                      />
+                      <span className="slider round"></span>
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="label">Preferred Language:</span>
+                      <select 
+                        value={preferredLanguage}
+                        onChange={(e) => setPreferredLanguage(e.target.value as any)}
+                        style={{ padding: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', outline: 'none' }}
+                      >
+                        <option value="hinglish">Hinglish</option>
+                        <option value="hindi">Hindi</option>
+                        <option value="english">English</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                      <span className="label">Voice Response Speed:</span>
+                      <select 
+                        value={voiceResponseSpeed}
+                        onChange={(e) => setVoiceResponseSpeed(e.target.value as any)}
+                        style={{ padding: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', outline: 'none' }}
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="fast">Fast (1.5x)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="settings-card matrix-card text-left">

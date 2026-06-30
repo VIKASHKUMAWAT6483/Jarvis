@@ -5,6 +5,9 @@ export interface VoiceServiceSettings {
   voiceEnabled: boolean;
   audioCacheEnabled: boolean;
   language: 'hinglish' | 'hindi' | 'english';
+  autoRetryVoiceOnce: boolean;
+  voiceResponseSpeed: 'normal' | 'fast';
+  preferredLanguage: 'hinglish' | 'hindi' | 'english';
 }
 
 export class VoiceService {
@@ -16,7 +19,10 @@ export class VoiceService {
   private settings: VoiceServiceSettings = {
     voiceEnabled: false, // default off as per setting toggles
     audioCacheEnabled: false, // default off
-    language: 'hinglish'
+    language: 'hinglish',
+    autoRetryVoiceOnce: true,
+    voiceResponseSpeed: 'normal',
+    preferredLanguage: 'hinglish'
   };
 
   constructor(
@@ -35,6 +41,9 @@ export class VoiceService {
    */
   public setSettings(settings: Partial<VoiceServiceSettings>): void {
     this.settings = { ...this.settings, ...settings };
+    if (settings.preferredLanguage) {
+      this.settings.language = settings.preferredLanguage;
+    }
   }
 
   /**
@@ -56,42 +65,72 @@ export class VoiceService {
   /**
    * Simulates/Executes Voice-to-Text Speech Recognition and optionally saves audio log
    */
-  public async recordAndTranscribe(simulatedText?: string): Promise<string> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const transcript = simulatedText || (
-      this.settings.language === 'hindi' ? "Jarvis, storage status check karo" :
-      this.settings.language === 'hinglish' ? "Jarvis, current project ka git status batao" :
-      "Jarvis, flutter analyze prepare karo"
-    );
+  public async recordAndTranscribe(options?: string | { simulatedText?: string; forceFailureOnce?: boolean; forceFailureAlways?: boolean }): Promise<string> {
+    const opt = typeof options === 'string' ? { simulatedText: options } : options;
+    let attempt = 1;
+    const maxAttempts = this.settings.autoRetryVoiceOnce ? 2 : 1;
 
-    // Save audio cache raw input file if enabled and SSD is mounted
-    if (this.settings.audioCacheEnabled && this.storage.isExternalDriveMounted()) {
+    while (attempt <= maxAttempts) {
       try {
-        const cachePath = this.getAudioCachePath(`input_${timestamp}`);
-        const cacheDir = this.path ? this.path.dirname(cachePath) : '';
-        
-        if (this.fs) {
-          if (cacheDir && !this.fs.existsSync(cacheDir)) {
-            this.fs.mkdirSync(cacheDir, { recursive: true });
-          }
-          this.fs.writeFileSync(cachePath, `MOCK_RAW_AUDIO_INPUT: "${transcript}"`);
+        if (opt?.forceFailureAlways || (opt?.forceFailureOnce && attempt === 1)) {
+          const err: any = new Error("TRANSCRIPTION_API_TIMEOUT: Simulated transcription service timeout.");
+          err.transcriptionAttempt = opt?.simulatedText || (
+            this.settings.preferredLanguage === 'hindi' ? "Jarvis, storage status check karo" :
+            this.settings.preferredLanguage === 'hinglish' ? "Jarvis, current project ka git status batao" :
+            "Jarvis, flutter analyze prepare karo"
+          );
+          throw err;
         }
-      } catch {
-        // Silently catch write errors if unmounted or failing
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const transcript = opt?.simulatedText || (
+          this.settings.preferredLanguage === 'hindi' ? "Jarvis, storage status check karo" :
+          this.settings.preferredLanguage === 'hinglish' ? "Jarvis, current project ka git status batao" :
+          "Jarvis, flutter analyze prepare karo"
+        );
+
+        // Raw audio storage logic (temp file always created, but only permanently saved to HP P500 if audio cache is ON)
+        if (this.storage.isExternalDriveMounted()) {
+          const tempPath = this.getAudioCachePath(`input_temp_${timestamp}`);
+          const finalPath = this.getAudioCachePath(`input_${timestamp}`);
+          const cacheDir = this.path ? this.path.dirname(tempPath) : '';
+          
+          if (this.fs) {
+            if (cacheDir && !this.fs.existsSync(cacheDir)) {
+              this.fs.mkdirSync(cacheDir, { recursive: true });
+            }
+            // Create the temp WAV content
+            this.fs.writeFileSync(tempPath, `MOCK_RAW_AUDIO_INPUT: "${transcript}"`);
+            
+            if (this.settings.audioCacheEnabled) {
+              // Permanently keep it by renaming
+              this.fs.renameSync(tempPath, finalPath);
+            } else {
+              // Immediately delete temp file (do not permanently store raw audio)
+              this.fs.unlinkSync(tempPath);
+            }
+          }
+        }
+
+        this.database.logStorageEvent('VOICE_INPUT', `Recorded and transcribed input: "${transcript}"`);
+        return transcript;
+      } catch (err: any) {
+        if (attempt < maxAttempts) {
+          console.warn(`[VoiceService] Transcription attempt ${attempt} failed. Retrying...`);
+          attempt++;
+          continue;
+        }
+        throw err;
       }
     }
-
-    // Log audio event to SQLite database
-    this.database.logStorageEvent('VOICE_INPUT', `Recorded and transcribed input: "${transcript}"`);
-
-    return transcript;
+    throw new Error("UNKNOWN_VOICE_ERROR");
   }
 
   /**
    * Synthesizes audio using native browser TTS or simulated TTS and optionally caches output
    */
   public async playVoiceMessage(text: string): Promise<boolean> {
-    console.log(`TTS synthesis request (${this.settings.language}): "${text}"`);
+    console.log(`TTS synthesis request (${this.settings.preferredLanguage}): "${text}"`);
 
     // 1. Speak voice response via Web Speech Synthesis if active and supported
     if (this.settings.voiceEnabled && typeof window !== 'undefined' && window.speechSynthesis) {
@@ -99,13 +138,15 @@ export class VoiceService {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         
-        if (this.settings.language === 'hindi') {
+        if (this.settings.preferredLanguage === 'hindi') {
           utterance.lang = 'hi-IN';
-        } else if (this.settings.language === 'english') {
+        } else if (this.settings.preferredLanguage === 'english') {
           utterance.lang = 'en-US';
         } else {
           utterance.lang = 'hi-IN'; // Hinglish mixed language fallback
         }
+
+        utterance.rate = this.settings.voiceResponseSpeed === 'fast' ? 1.5 : 1.0;
         
         window.speechSynthesis.speak(utterance);
       } catch (e) {
