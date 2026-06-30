@@ -8,6 +8,11 @@ export interface VoiceServiceSettings {
   autoRetryVoiceOnce: boolean;
   voiceResponseSpeed: 'normal' | 'fast';
   preferredLanguage: 'hinglish' | 'hindi' | 'english';
+  // Wake Word Settings
+  wakeWordEnabled: boolean;
+  wakePhrase: string;
+  wakeWordSensitivity: 'low' | 'medium' | 'high';
+  autoDisableOnHighCpu: boolean;
 }
 
 export class VoiceService {
@@ -22,8 +27,14 @@ export class VoiceService {
     language: 'hinglish',
     autoRetryVoiceOnce: true,
     voiceResponseSpeed: 'normal',
-    preferredLanguage: 'hinglish'
+    preferredLanguage: 'hinglish',
+    wakeWordEnabled: false, // default OFF as per requirement
+    wakePhrase: 'Hey Jarvis',
+    wakeWordSensitivity: 'medium',
+    autoDisableOnHighCpu: true
   };
+
+  private wakeWordStatus: 'off' | 'listening' | 'detected' = 'off';
 
   constructor(
     storage: StorageManager,
@@ -51,6 +62,40 @@ export class VoiceService {
    */
   public getSettings(): VoiceServiceSettings {
     return { ...this.settings };
+  }
+
+  /**
+   * Retrieves wake word status
+   */
+  public getWakeWordStatus(): 'off' | 'listening' | 'detected' {
+    return this.settings.wakeWordEnabled ? this.wakeWordStatus : 'off';
+  }
+
+  /**
+   * Sets wake word status
+   */
+  public setWakeWordStatus(status: 'off' | 'listening' | 'detected'): void {
+    if (this.settings.wakeWordEnabled) {
+      this.wakeWordStatus = status;
+    } else {
+      this.wakeWordStatus = 'off';
+    }
+  }
+
+  /**
+   * Monitor CPU usage. Auto-disables wake word if CPU > 85% and autoDisableOnHighCpu is true
+   */
+  public monitorCpuUsage(cpuPercent: number): { warning: string | null; disabled: boolean } {
+    if (this.settings.wakeWordEnabled && this.settings.autoDisableOnHighCpu && cpuPercent > 85) {
+      this.settings.wakeWordEnabled = false;
+      this.wakeWordStatus = 'off';
+      this.database.logStorageEvent('WAKE_WORD_CPU_ALERT', `Wake word disabled automatically due to CPU spike: ${cpuPercent}%`);
+      return {
+        warning: `WARNING: CPU usage is at ${cpuPercent}%. Wake word has been auto-disabled to conserve system resources.`,
+        disabled: true
+      };
+    }
+    return { warning: null, disabled: false };
   }
 
   /**

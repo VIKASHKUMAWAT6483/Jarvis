@@ -79,6 +79,14 @@ function App() {
   const [preferredLanguage, setPreferredLanguage] = useState<'hinglish' | 'hindi' | 'english'>('hinglish');
   const [voiceStatus, setVoiceStatus] = useState<'Listening' | 'Processing' | 'Tool running' | 'Waiting for approval' | 'Completed' | 'Failed' | 'idle'>('idle');
 
+  // Wake Word Settings & Statuses
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  const [wakePhrase, setWakePhrase] = useState("Hey Jarvis");
+  const [wakeWordSensitivity, setWakeWordSensitivity] = useState<'low' | 'medium' | 'high'>('medium');
+  const [autoDisableOnHighCpu, setAutoDisableOnHighCpu] = useState(true);
+  const [wakeWordStatus, setWakeWordStatus] = useState<'off' | 'listening' | 'detected'>('off');
+  const [cpuSimulationAlert, setCpuSimulationAlert] = useState<string | null>(null);
+
   // Command Templates states
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("flutter_app_audit");
   const [templateOutput, setTemplateOutput] = useState<string>("");
@@ -365,9 +373,26 @@ function App() {
       language: preferredLanguage, // backward compatibility
       autoRetryVoiceOnce,
       voiceResponseSpeed,
-      preferredLanguage
+      preferredLanguage,
+      wakeWordEnabled,
+      wakePhrase,
+      wakeWordSensitivity,
+      autoDisableOnHighCpu
     });
-  }, [voiceEnabled, audioCacheEnabled, preferredLanguage, autoRetryVoiceOnce, voiceResponseSpeed, voiceService]);
+    // Update local status tracker
+    setWakeWordStatus(voiceService.getWakeWordStatus());
+  }, [
+    voiceEnabled, 
+    audioCacheEnabled, 
+    preferredLanguage, 
+    autoRetryVoiceOnce, 
+    voiceResponseSpeed, 
+    wakeWordEnabled, 
+    wakePhrase, 
+    wakeWordSensitivity, 
+    autoDisableOnHighCpu, 
+    voiceService
+  ]);
 
   // Instantiate SecretsManager
   const secretsManager = useMemo(() => {
@@ -1553,6 +1578,70 @@ function App() {
                       Voice Status: <strong style={{ color: '#fff' }}>{voiceStatus}</strong>
                     </div>
                   )}
+
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ 
+                        display: 'inline-block', 
+                        width: '8px', 
+                        height: '8px', 
+                        borderRadius: '50%', 
+                        background: !wakeWordEnabled ? '#9ca3af' : wakeWordStatus === 'listening' ? '#34d399' : '#3b82f6' 
+                      }} />
+                      Wake Word: <strong>{!wakeWordEnabled ? "Wake word OFF" : wakeWordStatus === 'listening' ? "Wake word listening" : "Command detected"}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        type="button"
+                        className="btn-secondary font-small"
+                        onClick={() => {
+                          if (wakeWordEnabled) {
+                            setWakeWordStatus('detected');
+                            setVoiceStatus('Listening');
+                            setTimeout(() => {
+                              setVoiceStatus('Processing');
+                              setChatInput("Jarvis, current project ka git status batao");
+                              setWakeWordStatus('listening');
+                            }, 1200);
+                          }
+                        }}
+                        disabled={!wakeWordEnabled}
+                        style={{ padding: '2px 6px', fontSize: '0.65rem' }}
+                      >
+                        ⚡ Simulate "Hey Jarvis"
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn-secondary font-small"
+                        onClick={() => {
+                          const cpuPercent = 90;
+                          const res = voiceService.monitorCpuUsage(cpuPercent);
+                          if (res.disabled) {
+                            setWakeWordEnabled(false);
+                            setWakeWordStatus('off');
+                            setCpuSimulationAlert(res.warning);
+                          }
+                        }}
+                        style={{ padding: '2px 6px', fontSize: '0.65rem', background: '#7f1d1d', border: 'none' }}
+                      >
+                        🔥 Simulate CPU Spike
+                      </button>
+                    </div>
+                  </div>
+
+                  {cpuSimulationAlert && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', fontSize: '0.72rem', padding: '6px 8px', borderRadius: '4px', marginTop: '6px' }}>
+                      ⚠️ {cpuSimulationAlert}
+                      <button 
+                        onClick={() => setCpuSimulationAlert(null)}
+                        style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.7rem' }}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1910,6 +1999,68 @@ function App() {
                         <option value="normal">Normal</option>
                         <option value="fast">Fast (1.5x)</option>
                       </select>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '12px', paddingTop: '12px' }}>
+                      <strong>Wake Word Activation</strong>
+                      
+                      <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
+                        <div className="toggle-label">
+                          <strong>Enable Wake Word</strong>
+                          <p>Listen for "Hey Jarvis" to start voice input mode.</p>
+                        </div>
+                        <label className="switch">
+                          <input 
+                            type="checkbox" 
+                            checked={wakeWordEnabled}
+                            onChange={(e) => {
+                              setWakeWordEnabled(e.target.checked);
+                              setWakeWordStatus(e.target.checked ? 'listening' : 'off');
+                            }}
+                          />
+                          <span className="slider round"></span>
+                        </label>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span className="label">Wake Phrase:</span>
+                          <input 
+                            type="text" 
+                            value={wakePhrase} 
+                            disabled 
+                            style={{ width: '120px', padding: '4px 6px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#cbd5e1', fontSize: '0.75rem' }} 
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                          <span className="label">Sensitivity:</span>
+                          <select 
+                            value={wakeWordSensitivity}
+                            onChange={(e) => setWakeWordSensitivity(e.target.value as any)}
+                            style={{ padding: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.75rem' }}
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                        </div>
+
+                        <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                          <div className="toggle-label">
+                            <strong>Auto-Disable on High CPU</strong>
+                            <p>Turn off wake word listening if CPU exceeds 85% safety limits.</p>
+                          </div>
+                          <label className="switch">
+                            <input 
+                              type="checkbox" 
+                              checked={autoDisableOnHighCpu}
+                              onChange={(e) => setAutoDisableOnHighCpu(e.target.checked)}
+                            />
+                            <span className="slider round"></span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
