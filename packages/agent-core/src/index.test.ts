@@ -335,4 +335,40 @@ describe('AgentCore Text Assistant Tests', () => {
 
     cleanupSandbox();
   });
+
+  test('8. Ambiguous Prompt Detection', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const safety = new SafetyEngine();
+    const tools = new ToolRegistry();
+    const agent = new AgentCore(storage, safety, tools);
+
+    // Send ambiguous command
+    const res = await agent.handleUserPrompt('Jarvis run', {
+      activeProjectPath: path.join(mockExternal, 'proj-1')
+    });
+
+    assert.equal(res.error, 'AMBIGUOUS_COMMAND');
+    assert.match(res.reply, /command is ambiguous/);
+
+    cleanupSandbox();
+  });
 });

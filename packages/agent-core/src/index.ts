@@ -361,6 +361,15 @@ export class AgentCore {
       };
     }
 
+    // 1.5. Ambiguous command check
+    const cleanPrompt = prompt.toLowerCase().trim();
+    if (cleanPrompt === 'jarvis run' || cleanPrompt === 'run it' || cleanPrompt === 'execute' || cleanPrompt === 'do it' || cleanPrompt === 'jarvis, run' || cleanPrompt === 'jarvis execute') {
+      return {
+        reply: "The command is ambiguous. Please clarify which tool or action you want to execute.",
+        error: "AMBIGUOUS_COMMAND"
+      };
+    }
+
     // 2. Add message to history
     this.conversationHistory.push({
       id: crypto.randomUUID(),

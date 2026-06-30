@@ -963,6 +963,30 @@ function App() {
         const transcribedText = await voiceService.recordAndTranscribe();
         setChatMessages(prev => [...prev, { sender: 'user', text: `🗣️ [Voice Input]: "${transcribedText}"` }]);
         setHudCurrentCommand(transcribedText);
+
+        // 1. Spoken confirmation loop interception
+        const spokenRes = voiceService.processSpokenConfirmation(transcribedText, pendingCommand, pendingRiskLevel);
+        if (spokenRes.handled) {
+          setChatMessages(prev => [...prev, { sender: 'jarvis', text: spokenRes.reply }]);
+          await voiceService.playVoiceMessage(spokenRes.reply);
+
+          if (spokenRes.action === 'confirm' && spokenRes.allowed) {
+            handleApproveSafetyModal();
+            setVoiceStatus('Completed');
+          } else if (spokenRes.action === 'cancel' && spokenRes.allowed) {
+            setShowApprovalModal(false);
+            setPendingCommand("");
+            setTypedConfirmation("");
+            setVoiceStatus('idle');
+          } else if (spokenRes.action === 'open_screen' && spokenRes.allowed) {
+            setActiveTab('approvals');
+            setVoiceStatus('Completed');
+          } else {
+            setVoiceStatus('Waiting for approval');
+          }
+          setRenderTrigger(prev => prev + 1);
+          return;
+        }
         
         const activePath = activeProject ? activeProject.project_path : '';
         setVoiceStatus('Tool running');
