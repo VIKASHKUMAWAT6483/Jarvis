@@ -6,6 +6,7 @@ import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, Gma
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
+import JarvisHUD from "./components/JarvisHUD";
 import "./App.css";
 
 interface SimulatedFsState {
@@ -115,6 +116,11 @@ function App() {
   // Update Checker states
   const [updateManifest, setUpdateManifest] = useState<any | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState<boolean>(false);
+
+  // HUD Overlay states
+  const [hudVisible, setHudVisible] = useState<boolean>(true);
+  const [hudDefaultExpanded, setHudDefaultExpanded] = useState<boolean>(false);
+  const [hudOpacity, setHudOpacity] = useState<number>(85);
 
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
@@ -1218,7 +1224,7 @@ function App() {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <p>Version 1.1.0</p>
+          <p>Version 1.2.0-dev</p>
         </div>
       </aside>
 
@@ -2062,6 +2068,49 @@ function App() {
                         </div>
                       </div>
                     </div>
+
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '16px', paddingTop: '12px' }}>
+                      <strong>HUD Preferences</strong>
+
+                      <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
+                        <div className="toggle-label">
+                          <strong>Enable Floating HUD</strong>
+                          <p>Show a lightweight overlay with system status, voice progress, and quick actions.</p>
+                        </div>
+                        <label className="switch">
+                          <input 
+                            type="checkbox" 
+                            checked={hudVisible}
+                            onChange={(e) => setHudVisible(e.target.checked)}
+                          />
+                          <span className="slider round"></span>
+                        </label>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                        <span className="label">Default HUD State:</span>
+                        <select 
+                          value={hudDefaultExpanded ? 'expanded' : 'minimized'}
+                          onChange={(e) => setHudDefaultExpanded(e.target.value === 'expanded')}
+                          style={{ padding: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', outline: 'none', fontSize: '0.75rem' }}
+                        >
+                          <option value="minimized">Minimized (Orb)</option>
+                          <option value="expanded">Expanded (Full Panel)</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                        <span className="label">HUD Opacity: {hudOpacity}%</span>
+                        <input 
+                          type="range" 
+                          min="50" 
+                          max="100" 
+                          value={hudOpacity}
+                          onChange={(e) => setHudOpacity(parseInt(e.target.value))}
+                          style={{ width: '120px', accentColor: '#6366f1' }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -2786,6 +2835,26 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Jarvis Lightweight HUD Overlay */}
+      <JarvisHUD
+        visible={hudVisible}
+        voiceStatus={voiceStatus}
+        wakeWordStatus={wakeWordStatus}
+        isRecording={isRecording}
+        ssdConnected={fsState.isMounted}
+        voiceEnabled={voiceEnabled}
+        activeProjectName={activeProject?.project_name || null}
+        healthScore={healthData?.score ?? null}
+        healthStatus={healthData?.status ?? null}
+        pendingApprovalsCount={pendingApprovalsCount}
+        recentCommands={commandsList.slice(0, 3).map(c => ({ id: c.id, user_input: c.user_input, status: c.status }))}
+        hudOpacity={hudOpacity}
+        defaultExpanded={hudDefaultExpanded}
+        onMicToggle={handleTriggerVoiceRecording}
+        onBriefingTrigger={handleGenerateDailyBriefing}
+        onBackupTrigger={handleRunHomeBackup}
+      />
     </div>
   );
 }

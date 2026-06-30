@@ -1,0 +1,504 @@
+/* ==============================================================================
+   Jarvis HUD — Lightweight Floating Overlay Stylesheet
+   Glassmorphic design with animated voice indicators and micro-interactions
+   ============================================================================== */
+
+/* ── HUD Container (Fixed Overlay) ── */
+.jarvis-hud-container {
+  position: fixed;
+  z-index: 9999;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Minimized Orb ── */
+.hud-minimized-orb {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 
+    0 0 20px rgba(99, 102, 241, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+}
+
+.hud-minimized-orb:hover {
+  transform: scale(1.1);
+  box-shadow: 
+    0 0 28px rgba(99, 102, 241, 0.6),
+    0 6px 24px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.hud-minimized-orb .orb-inner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.3);
+  animation: hud-orb-breathe 3s infinite ease-in-out;
+}
+
+.hud-minimized-orb.voice-active {
+  animation: hud-orb-voice-pulse 1.2s infinite ease-in-out;
+}
+
+.hud-minimized-orb.voice-active .orb-inner {
+  background: rgba(52, 211, 153, 0.5);
+  box-shadow: inset 0 0 10px rgba(52, 211, 153, 0.4);
+}
+
+/* Pending approvals badge on orb */
+.hud-orb-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #0a0b0d;
+  animation: hud-badge-pulse 2s infinite ease-in-out;
+}
+
+/* ── Expanded HUD Panel ── */
+.hud-expanded-panel {
+  width: 340px;
+  border-radius: 16px;
+  background: rgba(18, 20, 28, 0.78);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 8px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(99, 102, 241, 0.1),
+    0 0 60px rgba(99, 102, 241, 0.08);
+  overflow: hidden;
+  animation: hud-expand-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform-origin: bottom right;
+}
+
+.hud-expanded-panel.collapsing {
+  animation: hud-collapse-out 0.3s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+/* ── HUD Header ── */
+.hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: move;
+  user-select: none;
+}
+
+.hud-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hud-header-orb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+  animation: hud-orb-breathe 4s infinite ease-in-out;
+}
+
+.hud-header-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  background: linear-gradient(135deg, #fff, #a5b4fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+}
+
+.hud-minimize-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.hud-minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* ── System Status Row ── */
+.hud-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.hud-status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+  color: #9ca3af;
+}
+
+.hud-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hud-status-dot.connected { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+.hud-status-dot.disconnected { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+.hud-status-dot.enabled { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+.hud-status-dot.disabled { background: #4b5563; }
+.hud-status-dot.listening { background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, 0.5); animation: hud-dot-blink 1.5s infinite; }
+.hud-status-dot.off { background: #4b5563; }
+
+/* ── Voice Progress Section ── */
+.hud-voice-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.hud-voice-label {
+  font-size: 0.62rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.hud-voice-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+}
+
+.hud-waveform-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: #4b5563;
+  transition: background 0.3s;
+}
+
+.hud-waveform.active .hud-waveform-bar {
+  background: #6366f1;
+}
+
+.hud-waveform.active .hud-waveform-bar:nth-child(1) {
+  animation: hud-wave 0.8s infinite ease-in-out 0s;
+}
+.hud-waveform.active .hud-waveform-bar:nth-child(2) {
+  animation: hud-wave 0.8s infinite ease-in-out 0.15s;
+}
+.hud-waveform.active .hud-waveform-bar:nth-child(3) {
+  animation: hud-wave 0.8s infinite ease-in-out 0.3s;
+}
+.hud-waveform.active .hud-waveform-bar:nth-child(4) {
+  animation: hud-wave 0.8s infinite ease-in-out 0.45s;
+}
+.hud-waveform.active .hud-waveform-bar:nth-child(5) {
+  animation: hud-wave 0.8s infinite ease-in-out 0.6s;
+}
+
+.hud-waveform.failed .hud-waveform-bar {
+  background: #ef4444;
+}
+
+.hud-waveform.completed .hud-waveform-bar {
+  background: #10b981;
+}
+
+.hud-voice-status-text {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.hud-voice-status-text.idle { color: #6b7280; }
+.hud-voice-status-text.listening { color: #34d399; }
+.hud-voice-status-text.processing { color: #60a5fa; }
+.hud-voice-status-text.running { color: #818cf8; }
+.hud-voice-status-text.approval { color: #fbbf24; }
+.hud-voice-status-text.completed { color: #10b981; }
+.hud-voice-status-text.failed { color: #ef4444; }
+
+/* ── Active Project Quick View ── */
+.hud-project-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.hud-project-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.hud-project-label {
+  font-size: 0.6rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+.hud-project-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #f3f4f6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.hud-health-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.hud-health-badge.excellent { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+.hud-health-badge.good { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+.hud-health-badge.needs-work { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+.hud-health-badge.critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+/* ── Recent Activity Feed ── */
+.hud-activity-section {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  max-height: 105px;
+  overflow-y: auto;
+}
+
+.hud-activity-label {
+  font-size: 0.6rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.hud-activity-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.hud-activity-item:last-child {
+  border-bottom: none;
+}
+
+.hud-activity-cmd {
+  font-size: 0.68rem;
+  color: #d1d5db;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.hud-activity-status {
+  font-size: 0.55rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hud-activity-status.success { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.hud-activity-status.pending { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.hud-activity-status.failed { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.hud-activity-status.blocked { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+/* ── Quick Action Buttons ── */
+.hud-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+}
+
+.hud-action-btn {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: #d1d5db;
+  font-size: 0.68rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.hud-action-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.hud-action-btn:active {
+  transform: translateY(0);
+}
+
+.hud-action-btn.recording {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  animation: hud-recording-pulse 1.5s infinite;
+}
+
+/* ── Pending Approvals Banner ── */
+.hud-approvals-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(239, 68, 68, 0.06);
+  border-top: 1px solid rgba(239, 68, 68, 0.15);
+  font-size: 0.68rem;
+  color: #f87171;
+  font-weight: 600;
+}
+
+.hud-approvals-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: hud-badge-pulse 2s infinite ease-in-out;
+}
+
+/* ── Scrollbar styling ── */
+.hud-activity-section::-webkit-scrollbar {
+  width: 3px;
+}
+
+.hud-activity-section::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hud-activity-section::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* ── Animations ── */
+@keyframes hud-orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes hud-orb-voice-pulse {
+  0%, 100% { 
+    transform: scale(1); 
+    box-shadow: 0 0 20px rgba(52, 211, 153, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4); 
+  }
+  50% { 
+    transform: scale(1.08); 
+    box-shadow: 0 0 32px rgba(52, 211, 153, 0.5), 0 6px 24px rgba(0, 0, 0, 0.5); 
+  }
+}
+
+@keyframes hud-badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+@keyframes hud-wave {
+  0%, 100% { height: 6px; }
+  50% { height: 20px; }
+}
+
+@keyframes hud-expand-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes hud-collapse-out {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.85) translateY(10px);
+  }
+}
+
+@keyframes hud-dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes hud-recording-pulse {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.2); }
+  50% { border-color: rgba(239, 68, 68, 0.6); }
+}
+
+/* ── Responsive: auto-hide on small screens ── */
+@media (max-width: 768px) {
+  .jarvis-hud-container {
+    display: none;
+  }
+}
