@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -100,6 +100,9 @@ function App() {
   const [backupRiskyCommand, setBackupRiskyCommand] = useState<string>("");
   const [backupRiskLevel, setBackupRiskLevel] = useState<'low' | 'medium' | 'high' | 'critical'>('low');
   const [backupRecommendation, setBackupRecommendation] = useState<string>("");
+
+  // Error Diagnostics states
+  const [activeDiagnosticError, setActiveDiagnosticError] = useState<any | null>(null);
 
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
@@ -339,6 +342,11 @@ function App() {
   // Instantiate DailyBriefingGenerator
   const dailyBriefingGenerator = useMemo(() => {
     return new DailyBriefingGenerator();
+  }, []);
+
+  // Instantiate ErrorDiagnostics
+  const errorDiagnostics = useMemo(() => {
+    return new ErrorDiagnostics();
   }, []);
 
   const templatesList = useMemo(() => {
@@ -645,6 +653,14 @@ function App() {
       setRenderTrigger(prev => prev + 1);
     } catch (err: any) {
       setTerminalLog(`Dev tool execution failed: ${err.message}`);
+      let cat = 'generic_error';
+      if (err.message?.includes("SSD disconnected")) cat = 'ssd_disconnected';
+      else if (err.message?.includes("API key")) cat = 'api_key_missing';
+      else if (err.message?.includes("build failed") || err.message?.includes("Build failed")) cat = 'build_failed';
+      else if (err.message?.includes("permission denied") || err.message?.includes("Permission denied")) cat = 'permission_denied';
+
+      const diag = errorDiagnostics.diagnose(cat, err.message);
+      setActiveDiagnosticError(diag);
     }
   };
 
@@ -785,11 +801,24 @@ function App() {
         } else {
           setTerminalLog(`Execution blocked: ${res.error}`);
           if (!forceBypass) setCliInput("");
+          let cat = 'generic_error';
+          if (res.error?.includes("SSD disconnected")) cat = 'ssd_disconnected';
+          else if (res.error?.includes("API key")) cat = 'api_key_missing';
+          else if (res.error?.includes("permission denied") || res.error?.includes("Permission denied")) cat = 'permission_denied';
+          else if (res.error?.includes("timeout")) cat = 'command_timeout';
+          else if (res.error?.includes("build failed") || res.error?.includes("Build failed")) cat = 'build_failed';
+          
+          const diag = errorDiagnostics.diagnose(cat, res.error || 'Blocked');
+          setActiveDiagnosticError(diag);
         }
       }
       setRenderTrigger(prev => prev + 1);
     } catch (err: any) {
       setTerminalLog(`Execution failed: ${err.message}`);
+      let cat = 'generic_error';
+      if (err.message?.includes("SSD disconnected")) cat = 'ssd_disconnected';
+      const diag = errorDiagnostics.diagnose(cat, err.message);
+      setActiveDiagnosticError(diag);
     }
   };
 
@@ -1399,6 +1428,56 @@ function App() {
                   <pre className="command-preview-box font-mono" style={{ margin: 0, padding: '12px', background: 'rgba(0,0,0,0.5)', borderRadius: '6px', color: '#34d399', fontSize: '0.75rem', whiteSpace: 'pre-wrap', border: '1px solid var(--border-color)', minHeight: '110px', maxHeight: '150px', overflowY: 'auto' }}>
                     <code>{terminalLog}</code>
                   </pre>
+
+                  {activeDiagnosticError && (
+                    <div style={{ marginTop: '12px', padding: '12px', borderLeft: '4px solid #ef4444', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <strong style={{ fontSize: '0.85rem', color: '#f87171' }}>🚨 Error: {activeDiagnosticError.whatHappened}</strong>
+                        <button 
+                          className="btn-secondary font-small" 
+                          onClick={() => setActiveDiagnosticError(null)}
+                          style={{ padding: '2px 6px' }}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      
+                      <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginBottom: '6px' }}>
+                        <strong>Hinglish Summary:</strong> <span style={{ color: '#fbbf24' }}>{activeDiagnosticError.hinglishSummary}</span>
+                      </div>
+                      
+                      <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: '6px' }}>
+                        <strong>Why it happened:</strong> {activeDiagnosticError.whyLikely}
+                      </div>
+
+                      <div style={{ fontSize: '0.72rem', color: '#34d399', marginBottom: '6px' }}>
+                        <strong>Safe Next Step:</strong> {activeDiagnosticError.safeNextStep}
+                      </div>
+
+                      {activeDiagnosticError.logPath && (
+                        <div style={{ fontSize: '0.62rem', color: '#9ca3af', fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '4px 6px', borderRadius: '4px', marginBottom: '8px' }}>
+                          Log: {activeDiagnosticError.logPath}
+                        </div>
+                      )}
+
+                      {activeDiagnosticError.canRetry && (
+                        <button 
+                          className="btn-primary font-small"
+                          onClick={() => {
+                            if (activeDiagnosticError.category === 'ssd_disconnected') {
+                              handleCheckStorage();
+                            } else if (activeDiagnosticError.category === 'build_failed') {
+                              handleExecuteDevTool("npm_run_build");
+                            }
+                            setActiveDiagnosticError(null);
+                          }}
+                          style={{ padding: '4px 10px', marginTop: '4px' }}
+                        >
+                          🔄 Retry Operation
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Audit Logs & Reports Links */}
