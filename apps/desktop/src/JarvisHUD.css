@@ -28,7 +28,7 @@
   width: 280px;
 }
 .jarvis-hud--expanded {
-  width: 320px;
+  width: 340px;
 }
 
 /* ── Header / Drag Handle ── */
@@ -279,3 +279,81 @@
   padding: 0 3px;
   line-height: 1;
 }
+
+/* ── Timeline Styles ── */
+.hud-timeline {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.hud-timeline-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.hud-timeline-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  display: inline-block;
+}
+.step-dot--active {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+  animation: dot-blink 1.2s ease-in-out infinite;
+}
+.step-dot--completed {
+  background: #10b981;
+}
+.step-text {
+  font-size: 10px;
+  color: #6b7280;
+}
+.step-text--active {
+  color: #f3f4f6;
+  font-weight: 600;
+}
+.step-text--completed {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+/* ── Command History Styles ── */
+.hud-history {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.hud-history-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.hud-history-item {
+  font-size: 10px;
+  color: #9ca3af;
+  padding: 2px 0;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Waveform Pause state ── */
+.hud-waveform--paused .hud-waveform__bar {
+  animation-play-state: paused !important;
+}
+

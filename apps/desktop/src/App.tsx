@@ -88,6 +88,10 @@ function App() {
   const [wakeWordStatus, setWakeWordStatus] = useState<'off' | 'listening' | 'detected'>('off');
   const [cpuSimulationAlert, setCpuSimulationAlert] = useState<string | null>(null);
   const [showHud, setShowHud] = useState(true);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [lowPowerMode, setLowPowerMode] = useState(false);
+  const [cpuPercent, setCpuPercent] = useState(15);
+  const [ramBytes, setRamBytes] = useState(185000000);
 
   // Release Assistant state variables
   const [releaseNotesVersion, setReleaseNotesVersion] = useState("1.2.0");
@@ -439,6 +443,23 @@ function App() {
     const gmailToken = secretsManager.getSecret("GMAIL_TOKEN");
     setIsGmailTokenSaved(!!gmailToken);
   }, [renderTrigger, secretsManager]);
+
+  // Simulating system stats dynamic updates (very lightweight, 3-sec interval)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCpuPercent(prev => {
+        if (prev > 85) return prev; // keep high if simulated spike is active
+        const base = lowPowerMode ? 8 : 15;
+        const change = Math.floor(Math.random() * 8) - 4; // -4 to +3
+        return Math.max(2, Math.min(99, base + change));
+      });
+      setRamBytes(prev => {
+        const change = Math.floor(Math.random() * 4000000) - 2000000;
+        return Math.max(120000000, Math.min(480000000, prev + change));
+      });
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [lowPowerMode]);
 
   // Instantiate BackupManager
   const backupManager = useMemo(() => {
@@ -831,6 +852,7 @@ function App() {
 
     try {
       setTerminalLog(`Analyzing command: "${cmdToRun}"...`);
+      setCommandHistory(prev => [...prev, cmdToRun].slice(-10));
 
       const res = await terminalExecutor.executeCommand(cmdToRun, activeProject.project_path, {
         bypassApprovalOverride: forceBypass
@@ -896,6 +918,7 @@ function App() {
 
     try {
       const promptToAgent = forceBypass ? `Execute command: ${pendingCommand}` : prompt;
+      setCommandHistory(prev => [...prev, promptToAgent].slice(-10));
       
       const res = await agentCore.handleUserPrompt(promptToAgent, {
         activeProjectPath: activePath,
@@ -2308,6 +2331,51 @@ function App() {
                             <span className="slider round"></span>
                           </label>
                         </div>
+
+                        <div className="toggle-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                          <div className="toggle-label">
+                            <strong>Low Power Mode</strong>
+                            <p>Pause HUD wave animation cycles to preserve device battery status.</p>
+                          </div>
+                          <label className="switch">
+                            <input 
+                              type="checkbox" 
+                              checked={lowPowerMode}
+                              onChange={(e) => setLowPowerMode(e.target.checked)}
+                            />
+                            <span className="slider round"></span>
+                          </label>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+                          <span className="label">Simulated CPU Load:</span>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => {
+                                setCpuPercent(90);
+                                if (autoDisableOnHighCpu) {
+                                  setWakeWordEnabled(false);
+                                  setWakeWordStatus('off');
+                                  setCpuSimulationAlert("Wake Word auto-disabled: CPU usage simulated at 90%!");
+                                }
+                              }}
+                              className="btn-primary"
+                              style={{ padding: '3px 8px', fontSize: '0.65rem' }}
+                            >
+                              Spike to 90%
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCpuPercent(15);
+                                setCpuSimulationAlert(null);
+                              }}
+                              className="btn-secondary"
+                              style={{ padding: '3px 8px', fontSize: '0.65rem' }}
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3271,9 +3339,12 @@ function App() {
         currentCommand={hudCurrentCommand}
         isRecording={isRecording}
         projectName={activeProject?.project_name || "None"}
+        projectHealthScore={healthData?.score || 100}
         ssdConnected={fsState.isMounted}
         pendingApprovals={approvalsList.filter(a => a.approval_status === "pending").length}
         wakeWordStatus={wakeWordStatus}
+        activeMonitoring={projectsList.length > 0}
+        commandHistory={commandHistory}
         onMicToggle={handleTriggerVoiceRecording}
         onStop={() => {
           setIsRecording(false);
@@ -3282,8 +3353,13 @@ function App() {
         }}
         onOpenDashboard={() => setActiveTab("home")}
         onOpenApprovals={() => setActiveTab("approvals")}
+        onOpenReports={() => setActiveTab("reports")}
+        onRunDailyBriefing={handleGenerateDailyBriefing}
         visible={showHud}
         onClose={() => setShowHud(false)}
+        lowPowerMode={lowPowerMode}
+        cpuPercent={cpuPercent}
+        ramBytes={ramBytes}
       />
     </div>
   );
