@@ -1,11 +1,13 @@
 import { StorageManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
+import { ProjectManager } from '@jarvis/project-manager';
 import { TerminalExecutor } from './terminal-executor.js';
 export * from './terminal-executor.js';
 export * from './templates.js';
 export * from './reports.js';
 export * from './briefing.js';
 export * from './errors.js';
+export * from './plugins.js';
 export interface ToolResult {
     success: boolean;
     output: string;
@@ -20,6 +22,8 @@ export interface ToolDefinition {
 }
 export declare class ToolRegistry {
     private tools;
+    private pluginManager;
+    setPluginManager(manager: any): void;
     registerTool(tool: ToolDefinition): void;
     getTool(name: string): ToolDefinition | undefined;
     listTools(): Omit<ToolDefinition, 'execute'>[];
@@ -96,8 +100,18 @@ export declare class GmailToolsManager {
         fs?: any;
         path?: any;
     });
+    private maskEmail;
+    private maskSubject;
+    private getGmailToken;
     registerAll(registry: ToolRegistry): void;
+    private verifyAccess;
+    gmailSearch(query: string): Promise<ToolResult>;
+    gmailReadThread(threadId: string): Promise<ToolResult>;
+    gmailSummarizeEmail(threadId: string): Promise<ToolResult>;
     gmailCreateDraft(recipient: string, subject: string, body: string): Promise<ToolResult>;
+    gmailCreateReplyDraft(threadId: string, replyContent: string): Promise<ToolResult>;
+    gmailMarkFollowUp(threadId: string): Promise<ToolResult>;
+    gmailSendEmail(recipient: string, subject: string, body: string): Promise<ToolResult>;
 }
 export declare class CalendarToolsManager {
     private storage;
@@ -122,10 +136,18 @@ export declare class MessageCallToolsManager {
         fs?: any;
         path?: any;
     });
+    private maskPhone;
+    private maskContent;
     registerAll(registry: ToolRegistry): void;
+    messageSearchContact(name: string): Promise<ToolResult>;
     messageCreateDraft(recipient: string, message: string): Promise<ToolResult>;
+    messagePreview(recipient: string, message: string): Promise<ToolResult>;
+    messageSendAfterApproval(recipient: string, message: string): Promise<ToolResult>;
     callPrepare(recipient: string): Promise<ToolResult>;
     contactLookupPlaceholder(name: string): Promise<ToolResult>;
+    contactLookup(name: string): Promise<ToolResult>;
+    callPreview(recipient: string): Promise<ToolResult>;
+    callStartAfterApproval(recipient: string): Promise<ToolResult>;
 }
 export declare class BrowserToolsManager {
     private storage;
@@ -158,4 +180,41 @@ export declare class GithubToolsManager {
     githubListIssues(): Promise<ToolResult>;
     githubCreateIssueDraft(title: string, body: string): Promise<ToolResult>;
     githubPrSummary(): Promise<ToolResult>;
+    githubPrList(): Promise<ToolResult>;
+    githubPrReviewDraft(prNumber: number, comment: string): Promise<ToolResult>;
+    githubCreateIssue(title: string, body: string): Promise<ToolResult>;
+    githubCreatePrDraft(title: string, headBranch: string, baseBranch: string): Promise<ToolResult>;
+    githubPrMerge(prNumber: number): Promise<ToolResult>;
+    githubBranchDelete(branchName: string): Promise<ToolResult>;
+    githubSecretsSet(secretName: string, secretValue: string): Promise<ToolResult>;
+}
+export declare class MultiProjectToolsManager {
+    private storage;
+    private database;
+    private projectManager;
+    private fs;
+    private path;
+    constructor(storageManager: StorageManager, databaseManager: DatabaseManager, projectManager: ProjectManager, options?: {
+        fs?: any;
+        path?: any;
+    });
+    registerAll(registry: ToolRegistry): void;
+    projectWatchlistAdd(projectPath: string, name: string): Promise<ToolResult>;
+    projectWatchlistList(): Promise<ToolResult>;
+    projectMonitorStatus(): Promise<ToolResult>;
+}
+export declare class AppReleaseToolsManager {
+    private storage;
+    private database;
+    private fs;
+    private path;
+    constructor(storageManager: StorageManager, databaseManager: DatabaseManager, options?: {
+        fs?: any;
+        path?: any;
+    });
+    registerAll(registry: ToolRegistry): void;
+    appReleaseNotesDraft(version: string): Promise<ToolResult>;
+    appStoreListingDraft(appName: string): Promise<ToolResult>;
+    appReleaseReadinessReport(projectPath: string): Promise<ToolResult>;
+    appStoreUpload(filePath: string): Promise<ToolResult>;
 }

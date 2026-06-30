@@ -152,4 +152,69 @@ describe('VoiceService Mappings & Cache Tests', () => {
         assert.equal(voice.getWakeWordStatus(), 'off');
         cleanupSandbox();
     });
+    test('5. Voice Confirmation Loops Verification', () => {
+        setupSandbox();
+        const mockExternal = path.join(sandboxDir, 'mock-external');
+        const mockInternal = path.join(sandboxDir, 'mock-internal');
+        fs.mkdirSync(mockExternal, { recursive: true });
+        fs.mkdirSync(mockInternal, { recursive: true });
+        const storage = new StorageManager({
+            externalRoot: mockExternal,
+            internalRoot: mockInternal,
+            allowTemporaryInternalMode: false,
+            fs,
+            path,
+            os
+        });
+        storage.ensureJarvisFolders();
+        const db = new DatabaseManager(storage, { fs, path });
+        db.initialize();
+        const voice = new VoiceService(storage, db, { fs, path });
+        // Case 1: No pending command
+        const resNoCmd = voice.processSpokenConfirmation('Confirm', '', 'medium');
+        assert.equal(resNoCmd.handled, true);
+        assert.equal(resNoCmd.allowed, false);
+        assert.match(resNoCmd.reply, /no pending command/);
+        // Case 2: Spoken confirm for safe medium risk command
+        const resMediumSafe = voice.processSpokenConfirmation('Confirm', 'npm install', 'medium');
+        assert.equal(resMediumSafe.handled, true);
+        assert.equal(resMediumSafe.allowed, true);
+        assert.match(resMediumSafe.reply, /accepted/);
+        // Case 3: Spoken confirm for restricted medium risk command (contains "send")
+        const resMediumRestricted = voice.processSpokenConfirmation('Confirm', 'message_send_after_approval recipient: "bob"', 'medium');
+        assert.equal(resMediumRestricted.handled, true);
+        assert.equal(resMediumRestricted.allowed, false);
+        assert.match(resMediumRestricted.reply, /Security Gate: Spoken confirmation is not permitted/);
+        // Case 4: Spoken confirm for high risk command
+        const resHigh = voice.processSpokenConfirmation('Confirm', 'git push origin main', 'high');
+        assert.equal(resHigh.handled, true);
+        assert.equal(resHigh.allowed, false);
+        assert.match(resHigh.reply, /high risk operation/);
+        // Case 5: Spoken confirm for critical risk command
+        const resCritical = voice.processSpokenConfirmation('Confirm', 'rm -rf /', 'critical');
+        assert.equal(resCritical.handled, true);
+        assert.equal(resCritical.allowed, false);
+        assert.match(resCritical.reply, /critical operation/);
+        // Case 6: Spoken cancel
+        const resCancel = voice.processSpokenConfirmation('Cancel', 'npm install', 'medium');
+        assert.equal(resCancel.handled, true);
+        assert.equal(resCancel.allowed, true);
+        assert.match(resCancel.reply, /cancelled/);
+        // Case 7: Spoken details
+        const resDetails = voice.processSpokenConfirmation('show details', 'npm install', 'medium');
+        assert.equal(resDetails.handled, true);
+        assert.equal(resDetails.allowed, true);
+        assert.match(resDetails.reply, /Pending command is/);
+        // Case 8: Open approvals screen
+        const resScreen = voice.processSpokenConfirmation('open approval screen', 'npm install', 'medium');
+        assert.equal(resScreen.handled, true);
+        assert.equal(resScreen.allowed, true);
+        assert.match(resScreen.reply, /approvals screen/);
+        // Case 9: Ambiguous spoken confirmations
+        const resAmbiguous = voice.processSpokenConfirmation('do it', 'npm install', 'medium');
+        assert.equal(resAmbiguous.handled, true);
+        assert.equal(resAmbiguous.allowed, false);
+        assert.match(resAmbiguous.reply, /ambiguous/);
+        cleanupSandbox();
+    });
 });

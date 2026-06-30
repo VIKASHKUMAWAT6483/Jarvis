@@ -18,6 +18,13 @@ export class AgentCore {
         if (p.includes('storage') || p.includes('disk') || p.includes('ssd') || p.includes('space') || p.includes('storage status')) {
             return { toolName: 'storage_status', args: {} };
         }
+        // 1.5. Multi-Project Monitoring Status
+        if (p.includes('saare projects') || p.includes('projects status') || p.includes('project_monitor_status')) {
+            return {
+                toolName: 'project_monitor_status',
+                args: {}
+            };
+        }
         // 2. Git read-only tools
         if (p.includes('git status') || p.includes('status batao') || p.includes('git status batao')) {
             return { toolName: 'git_status', args: { projectPath: activePath } };
@@ -243,6 +250,38 @@ export class AgentCore {
                 args: {}
             };
         }
+        // 20.2. GitHub PR Draft Creation
+        if (p.includes('pr draft') || p.includes('github_create_pr_draft')) {
+            return {
+                toolName: 'github_create_pr_draft',
+                args: {
+                    title: 'Draft: Voice HUD modifications',
+                    headBranch: 'v1.2-development',
+                    baseBranch: 'main'
+                }
+            };
+        }
+        // 21. App Release Readiness Report
+        if (p.includes('release readiness report') || p.includes('release report') || p.includes('app_release_readiness_report')) {
+            return {
+                toolName: 'app_release_readiness_report',
+                args: { projectPath: activePath || '/Volumes/HP P500/Jarvis/02-projects/my-new-app' }
+            };
+        }
+        // 22. App Release Notes Draft
+        if (p.includes('release notes draft') || p.includes('draft release notes') || p.includes('app_release_notes_draft')) {
+            return {
+                toolName: 'app_release_notes_draft',
+                args: { version: '1.2.0' }
+            };
+        }
+        // 23. App Store Listing Draft
+        if (p.includes('store listing draft') || p.includes('draft store listing') || p.includes('app_store_listing_draft')) {
+            return {
+                toolName: 'app_store_listing_draft',
+                args: { appName: 'Jarvis AI' }
+            };
+        }
         return { toolName: null, args: {} };
     }
     /**
@@ -256,6 +295,14 @@ export class AgentCore {
             return {
                 reply: "Access denied. Prompt contains plain-text secret token or private key signatures.",
                 error: "BLOCKED_INPUT: Potential plain-text secret leak detection."
+            };
+        }
+        // 1.5. Ambiguous command check
+        const cleanPrompt = prompt.toLowerCase().trim();
+        if (cleanPrompt === 'jarvis run' || cleanPrompt === 'run it' || cleanPrompt === 'execute' || cleanPrompt === 'do it' || cleanPrompt === 'jarvis, run' || cleanPrompt === 'jarvis execute') {
+            return {
+                reply: "The command is ambiguous. Please clarify which tool or action you want to execute.",
+                error: "AMBIGUOUS_COMMAND"
             };
         }
         // 2. Add message to history
@@ -300,6 +347,28 @@ export class AgentCore {
             return {
                 reply: `Error: Inverted intent maps to unregistered tool "${toolName}".`,
                 error: "TOOL_NOT_FOUND"
+            };
+        }
+        // 6.5. Universal Safety Gate Check
+        const cmdReport = this.safety.analyzeCommand(toolName);
+        if (cmdReport.isBlocked) {
+            return {
+                reply: `Access denied. Command "${toolName}" is blocked by security guidelines.`,
+                error: `BLOCKED_COMMAND: Command "${toolName}" is blocked by security guidelines.`,
+                toolCalled: toolName
+            };
+        }
+        if (cmdReport.requiresApproval && !bypassOverride) {
+            const approvalCode = cmdReport.riskLevel === 'critical' ? 'TYPED_CONFIRMATION_REQUIRED' : 'APPROVAL_REQUIRED';
+            return {
+                reply: `Jarvis Shield triggered: Command execution requires user confirmation.`,
+                toolCalled: toolName,
+                error: `${approvalCode}: Action requires user validation.`,
+                approvalRequired: true,
+                criticalConfirmRequired: cmdReport.riskLevel === 'critical',
+                pendingCommand: toolName,
+                riskLevel: cmdReport.riskLevel,
+                explanation: cmdReport.explanation
             };
         }
         // 7. Inject override options if bypassed

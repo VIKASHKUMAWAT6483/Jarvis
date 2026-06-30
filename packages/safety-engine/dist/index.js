@@ -26,9 +26,9 @@ export class SafetyEngine {
         /git\s+commit/, // git commit
         /git\s+push/, // git push
         /firebase\s+deploy/, // firebase deploy
-        /(send\s+email|mail\s+)/i, // send email
-        /(send\s+message|sms\s+)/i, // send SMS/chat
-        /(start\s+call|call\s+)/i // call operations
+        /(send\s+email|mail\s+|gmail_send_email)/i, // send email
+        /(send\s+message|sms\s+|message_send_after_approval)/i, // send SMS/chat
+        /(start\s+call|call\s+|call_start_after_approval)/i // call operations
     ];
     // Regex patterns for medium commands
     mediumPatterns = [
@@ -72,6 +72,9 @@ export class SafetyEngine {
         if (trimmed.includes('cat') && (trimmed.includes('.env') || trimmed.includes('private.key') || trimmed.includes('service-account'))) {
             return true; // Exposing secrets is blocked by default
         }
+        if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set') || trimmed.includes('app_store_upload')) {
+            return true;
+        }
         return this.blockedPatterns.some(pattern => pattern.test(trimmed));
     }
     /**
@@ -94,7 +97,7 @@ export class SafetyEngine {
         if (trimmed.includes('message_create_draft') || trimmed.includes('call_prepare')) {
             return 'medium'; // message draft creation and call preparation are medium risk
         }
-        if (trimmed.includes('contact_lookup_placeholder')) {
+        if (trimmed.includes('contact_lookup_placeholder') || trimmed.includes('contact_lookup')) {
             return 'low'; // contact lookup is low risk
         }
         if (trimmed.includes('open_url') || trimmed.includes('open_google_play_console_placeholder') ||
@@ -104,11 +107,22 @@ export class SafetyEngine {
         if (trimmed.includes('search_web_query') || trimmed.includes('open_project_dashboard')) {
             return 'low'; // search web and local project dashboard is low risk
         }
-        if (trimmed.includes('github_create_issue_draft')) {
-            return 'medium'; // creating issue drafts is medium risk
+        if (trimmed.includes('github_branch_delete') || trimmed.includes('github_secrets_set') || trimmed.includes('app_store_upload')) {
+            return 'blocked';
         }
-        if (trimmed.includes('github_repo_status') || trimmed.includes('github_list_issues') || trimmed.includes('github_pr_summary')) {
-            return 'low'; // read-only github actions are low risk
+        if (trimmed.includes('github_pr_merge')) {
+            return 'critical';
+        }
+        if (trimmed.includes('github_create_pr_draft')) {
+            return 'high';
+        }
+        if (trimmed.includes('github_create_issue') || trimmed.includes('github_create_issue_draft') ||
+            trimmed.includes('app_release_readiness_report') || trimmed.includes('app_release_notes_draft') ||
+            trimmed.includes('app_store_listing_draft')) {
+            return 'medium';
+        }
+        if (trimmed.includes('github_repo_status') || trimmed.includes('github_list_issues') || trimmed.includes('github_pr_summary') || trimmed.includes('github_pr_list') || trimmed.includes('github_pr_review_draft')) {
+            return 'low';
         }
         if (this.isBlocked(trimmed)) {
             return 'blocked';

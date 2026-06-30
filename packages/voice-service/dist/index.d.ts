@@ -63,4 +63,13 @@ export declare class VoiceService {
      * Synthesizes audio using native browser TTS or simulated TTS and optionally caches output
      */
     playVoiceMessage(text: string): Promise<boolean>;
+    /**
+     * Processes a voice command transcript to determine if it is a confirmation voice action
+     */
+    processSpokenConfirmation(transcribedText: string, pendingCommand: string, pendingRiskLevel: 'low' | 'medium' | 'high' | 'critical' | 'blocked'): {
+        handled: boolean;
+        action: 'confirm' | 'cancel' | 'show_details' | 'open_screen' | 'ambiguous' | 'none';
+        allowed: boolean;
+        reply: string;
+    };
 }

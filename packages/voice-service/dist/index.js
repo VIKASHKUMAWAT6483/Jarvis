@@ -177,4 +177,113 @@ export class VoiceService {
         }
         return true;
     }
+    /**
+     * Processes a voice command transcript to determine if it is a confirmation voice action
+     */
+    processSpokenConfirmation(transcribedText, pendingCommand, pendingRiskLevel) {
+        const clean = transcribedText.toLowerCase().trim();
+        // Check if user input matches a confirmation keyword
+        const isConfirm = clean === 'confirm' || clean.includes('confirm') || clean === 'yes' || clean === 'approve';
+        const isCancel = clean === 'cancel' || clean.includes('cancel') || clean === 'abort';
+        const isDetails = clean === 'show details' || clean.includes('show details') || clean.includes('details');
+        const isScreen = clean === 'open approval screen' || clean.includes('approval screen') || clean.includes('open approvals');
+        // Ambiguous spoken confirmations (e.g. "do it", "go", "run" without explicit "confirm")
+        const isAmbiguous = clean === 'do it' || clean === 'go' || clean === 'run' || clean === 'ok' || clean === 'execute';
+        if (!pendingCommand) {
+            if (isConfirm || isCancel || isDetails || isScreen || isAmbiguous) {
+                return {
+                    handled: true,
+                    action: 'none',
+                    allowed: false,
+                    reply: 'There is no pending command awaiting confirmation.'
+                };
+            }
+            return { handled: false, action: 'none', allowed: false, reply: '' };
+        }
+        if (isAmbiguous) {
+            return {
+                handled: true,
+                action: 'ambiguous',
+                allowed: false,
+                reply: 'Spoken confirmation is ambiguous. Please say "Confirm" to proceed or "Cancel" to abort.'
+            };
+        }
+        if (isConfirm) {
+            if (pendingRiskLevel === 'blocked') {
+                return {
+                    handled: true,
+                    action: 'confirm',
+                    allowed: false,
+                    reply: 'This operation is blocked by security policies and cannot be executed.'
+                };
+            }
+            if (pendingRiskLevel === 'critical') {
+                return {
+                    handled: true,
+                    action: 'confirm',
+                    allowed: false,
+                    reply: 'This is a critical operation. Voice confirmation is not allowed. Please type the exact confirmation in the UI modal.'
+                };
+            }
+            if (pendingRiskLevel === 'high') {
+                return {
+                    handled: true,
+                    action: 'confirm',
+                    allowed: false,
+                    reply: 'This is a high risk operation. Voice confirmation is not allowed. Please approve manually using the UI confirmation modal.'
+                };
+            }
+            if (pendingRiskLevel === 'medium') {
+                // Rule 6: Send/call/deploy/delete/publish cannot be confirmed by voice alone
+                const lowerCmd = pendingCommand.toLowerCase();
+                const restricts = ['send', 'call', 'deploy', 'delete', 'publish'];
+                const hasRestrict = restricts.some(word => lowerCmd.includes(word));
+                if (hasRestrict) {
+                    return {
+                        handled: true,
+                        action: 'confirm',
+                        allowed: false,
+                        reply: `Security Gate: Spoken confirmation is not permitted for operations containing '${restricts.filter(w => lowerCmd.includes(w)).join(', ')}'. Please approve this action manually using the UI modal.`
+                    };
+                }
+                return {
+                    handled: true,
+                    action: 'confirm',
+                    allowed: true,
+                    reply: 'Spoken confirmation accepted. Executing command.'
+                };
+            }
+            return {
+                handled: true,
+                action: 'confirm',
+                allowed: true,
+                reply: 'Command confirmed.'
+            };
+        }
+        if (isCancel) {
+            return {
+                handled: true,
+                action: 'cancel',
+                allowed: true,
+                reply: 'Operation cancelled successfully.'
+            };
+        }
+        if (isDetails) {
+            return {
+                handled: true,
+                action: 'show_details',
+                allowed: true,
+                reply: `Pending command is: "${pendingCommand}". Risk Level is: ${pendingRiskLevel}.`
+            };
+        }
+        if (isScreen) {
+            return {
+                handled: true,
+                action: 'open_screen',
+                allowed: true,
+                reply: 'Opening security approvals screen.'
+            };
+        }
+        return { handled: false, action: 'none', allowed: false, reply: '' };
+    }
 }
