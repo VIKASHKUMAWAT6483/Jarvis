@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager, ReportGenerator } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -17,7 +17,7 @@ interface SimulatedFsState {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<"home" | "projects" | "storage" | "logs" | "approvals" | "templates">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "projects" | "storage" | "logs" | "approvals" | "templates" | "reports">("home");
   const [renderTrigger, setRenderTrigger] = useState(0);
   
   // Simulated storage state
@@ -84,6 +84,12 @@ function App() {
   const [templateOutput, setTemplateOutput] = useState<string>("");
   const [showTemplatePreview, setShowTemplatePreview] = useState<boolean>(false);
   const [isTemplateRunning, setIsTemplateRunning] = useState<boolean>(false);
+
+  // Reports states
+  const [selectedReportName, setSelectedReportName] = useState<string>("");
+  const [selectedReportContent, setSelectedReportContent] = useState<string>("");
+  const [reportExportFormat, setReportExportFormat] = useState<'markdown' | 'html' | 'csv' | 'json' | 'pdf_ready_html'>("markdown");
+  const [showReportDeleteConfirm, setShowReportDeleteConfirm] = useState<boolean>(false);
 
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
@@ -314,6 +320,11 @@ function App() {
   const templateManager = useMemo(() => {
     return new TemplateManager(toolRegistry);
   }, [toolRegistry]);
+
+  // Instantiate ReportGenerator
+  const reportGenerator = useMemo(() => {
+    return new ReportGenerator();
+  }, []);
 
   const templatesList = useMemo(() => {
     return templateManager.getTemplates();
@@ -1039,6 +1050,12 @@ function App() {
             onClick={() => setActiveTab("templates")}
           >
             <span className="nav-icon">📋</span> Templates
+          </button>
+          <button 
+            className={`nav-item ${activeTab === "reports" ? "active" : ""}`}
+            onClick={() => setActiveTab("reports")}
+          >
+            <span className="nav-icon">📊</span> Reports
           </button>
         </nav>
         <div className="sidebar-footer">
@@ -1788,6 +1805,179 @@ function App() {
                     </div>
                   );
                 })()}
+              </div>
+            </div>
+          </div>
+        ) : activeTab === "reports" ? (
+          <div className="viewport-page">
+            <header className="page-header">
+              <h1>System Reports Console</h1>
+              <p>View, export, and manage generated compliance audit reports.</p>
+            </header>
+
+            <div className="dashboard-grid" style={{ gap: '16px' }}>
+              {/* Reports list column */}
+              <div className="settings-column">
+                <div className="settings-card text-left" style={{ margin: 0, padding: '16px', height: '100%' }}>
+                  <h3>📂 Recent Generated Reports</h3>
+                  <p className="card-desc text-left font-small">Select a report from the SSD `/05-reports/` folder to view or export.</p>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px', maxHeight: '350px', overflowY: 'auto' }}>
+                    {availableReportsList.map((r, idx) => (
+                      <div 
+                        key={idx}
+                        onClick={async () => {
+                          setSelectedReportName(r);
+                          setShowReportDeleteConfirm(false);
+                          try {
+                            const root = fsState.externalRoot;
+                            const filePath = simpleMockPath.join(root, '05-reports', r);
+                            if (mockFs.existsSync(filePath)) {
+                              const content = mockFs.readFileSync(filePath, 'utf8');
+                              setSelectedReportContent(content);
+                            } else {
+                              setSelectedReportContent(`Error: File not found at ${filePath}`);
+                            }
+                          } catch (err: any) {
+                            setSelectedReportContent(`Error reading file: ${err.message}`);
+                          }
+                        }}
+                        style={{ 
+                          padding: '10px 12px', 
+                          borderRadius: '6px', 
+                          border: '1px solid var(--border-color)', 
+                          background: selectedReportName === r ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.02)', 
+                          cursor: 'pointer',
+                          borderColor: selectedReportName === r ? '#6366f1' : 'var(--border-color)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.8rem'
+                        }}
+                      >
+                        📄 {r}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* View / Export / Delete Column */}
+              <div className="settings-column">
+                {selectedReportName ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
+                    <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                      <h3>⚙️ Report Actions: {selectedReportName}</h3>
+                      
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                        {/* Format selector */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', marginBottom: '8px' }}>
+                          <span className="label">Export Format:</span>
+                          <select 
+                            value={reportExportFormat}
+                            onChange={(e) => setReportExportFormat(e.target.value as any)}
+                            style={{ padding: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', outline: 'none' }}
+                          >
+                            <option value="markdown">Markdown (.md)</option>
+                            <option value="html">HTML (.html)</option>
+                            <option value="csv">CSV (.csv)</option>
+                            <option value="json">JSON (.json)</option>
+                            <option value="pdf_ready_html">PDF-ready HTML</option>
+                          </select>
+                        </div>
+
+                        <button 
+                          className="btn-primary font-small"
+                          onClick={() => {
+                            try {
+                              const root = fsState.externalRoot;
+                              const reportsDir = simpleMockPath.join(root, '05-reports');
+                              const cleanName = selectedReportName.replace(/\.[^/.]+$/, "");
+                              const extension = reportExportFormat === 'pdf_ready_html' ? 'print.html' : reportExportFormat === 'markdown' ? 'md' : reportExportFormat;
+                              const targetFile = `${cleanName}_exported.${extension}`;
+                              const targetPath = simpleMockPath.join(reportsDir, targetFile);
+
+                              // Build metadata from report details
+                              const mockMeta = {
+                                report_type: selectedReportName.includes('AUDIT') ? 'App Audit Report' : 'Git Project Summary',
+                                project_name: activeProject?.project_name || 'My React App',
+                                timestamp: new Date().toISOString(),
+                                tools_used: ['git_status', 'flutter_analyze'],
+                                status: 'passed' as const,
+                                findings: [
+                                  `Audit logs verified for ${selectedReportName}`,
+                                  'Phone contact +91 98765 43210 parsed.',
+                                  'Developer key sk-proj-1234567890abcdef redacted.'
+                                ],
+                                next_actions: ['Monitor security alerts', 'Run database checkpoints']
+                              };
+
+                              const formatted = reportGenerator.formatReport(mockMeta, reportExportFormat);
+                              mockFs.writeFileSync(targetPath, formatted);
+                              setActionLog(`Successfully exported report as ${reportExportFormat.toUpperCase()} to: /05-reports/${targetFile}`);
+                              setRenderTrigger(prev => prev + 1);
+                            } catch (err: any) {
+                              setActionLog(`Export failed: ${err.message}`);
+                            }
+                          }}
+                        >
+                          📥 Export Report File
+                        </button>
+
+                        <button 
+                          className="btn-danger-confirm font-small"
+                          onClick={() => setShowReportDeleteConfirm(true)}
+                          style={{ background: '#ef4444' }}
+                        >
+                          🗑️ Delete Report
+                        </button>
+                      </div>
+
+                      {showReportDeleteConfirm && (
+                        <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px' }}>
+                          <strong style={{ color: '#f87171', fontSize: '0.8rem' }}>⚠️ Confirm Deletion?</strong>
+                          <p style={{ fontSize: '0.75rem', margin: '4px 0', color: '#9ca3af' }}>Are you sure you want to permanently delete this report file from the external SSD?</p>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                            <button 
+                              className="btn-danger-confirm font-small" 
+                              onClick={() => {
+                                try {
+                                  const root = fsState.externalRoot;
+                                  const targetPath = simpleMockPath.join(root, '05-reports', selectedReportName);
+                                  if (mockFs.existsSync(targetPath)) {
+                                    mockFs.unlinkSync(targetPath);
+                                    setActionLog(`Permanently deleted report file: ${selectedReportName}`);
+                                    setSelectedReportName("");
+                                    setSelectedReportContent("");
+                                    setRenderTrigger(prev => prev + 1);
+                                  }
+                                } catch (err: any) {
+                                  setActionLog(`Delete failed: ${err.message}`);
+                                }
+                                setShowReportDeleteConfirm(false);
+                              }}
+                            >
+                              Yes, Delete
+                            </button>
+                            <button className="btn-secondary font-small" onClick={() => setShowReportDeleteConfirm(false)}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="settings-card console-card text-left" style={{ margin: 0, padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      <h3>📄 Report Content Preview</h3>
+                      <pre className="console-output" style={{ flex: 1, margin: '8px 0 0 0', padding: '12px', background: 'rgba(0,0,0,0.6)', borderRadius: '6px', color: '#93c5fd', fontSize: '0.75rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', overflowY: 'auto', minHeight: '180px' }}>
+                        {selectedReportContent || "Empty report file."}
+                      </pre>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="settings-card text-left" style={{ margin: 0, padding: '16px' }}>
+                    <h3>🔍 Report Preview</h3>
+                    <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Select a report file from the list to preview content or export format conversions.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
