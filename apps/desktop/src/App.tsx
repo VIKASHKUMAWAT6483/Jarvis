@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager, ReportGenerator } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -90,6 +90,10 @@ function App() {
   const [selectedReportContent, setSelectedReportContent] = useState<string>("");
   const [reportExportFormat, setReportExportFormat] = useState<'markdown' | 'html' | 'csv' | 'json' | 'pdf_ready_html'>("markdown");
   const [showReportDeleteConfirm, setShowReportDeleteConfirm] = useState<boolean>(false);
+
+  // Daily Briefing states
+  const [briefingOutput, setBriefingOutput] = useState<string>("");
+  const [isGeneratingBriefing, setIsGeneratingBriefing] = useState<boolean>(false);
 
   // Secrets and OpenAI Key states
   const [openaiKeyInput, setOpenaiKeyInput] = useState("");
@@ -326,6 +330,11 @@ function App() {
     return new ReportGenerator();
   }, []);
 
+  // Instantiate DailyBriefingGenerator
+  const dailyBriefingGenerator = useMemo(() => {
+    return new DailyBriefingGenerator();
+  }, []);
+
   const templatesList = useMemo(() => {
     return templateManager.getTemplates();
   }, [templateManager]);
@@ -413,6 +422,66 @@ function App() {
     } else {
       setActionLog(`Check complete: SSD Disconnected. Heavy writes paused.`);
     }
+  };
+
+  const handleGenerateDailyBriefing = async () => {
+    setIsGeneratingBriefing(true);
+    try {
+      const root = fsState.externalRoot;
+      const briefingDir = simpleMockPath.join(root, '05-reports', 'daily-briefings');
+      if (!mockFs.existsSync(briefingDir)) {
+        mockFs.mkdirSync(briefingDir, { recursive: true });
+      }
+
+      // Fetch dynamic stats
+      const ssdStatus = fsState.isMounted;
+      const projectName = activeProject?.project_name || 'No Active Project';
+      const healthScore = healthData?.score || 0;
+      const healthStatus = healthData?.status || 'Needs Work';
+      const gitStatusSummary = activeProject ? 'On branch main. Changes not staged for commit.' : 'N/A';
+      const pendingApprovalsCount = approvalsList.filter(a => a.approval_status === 'pending').length;
+      
+      const failedCmds = commandsList.filter(c => c.status === 'failed');
+      const lastFailedCommand = failedCmds.length > 0 ? failedCmds[failedCmds.length - 1].user_input : 'None';
+      
+      const todayEvents = [
+        '9:00 AM - Sprint Sync & Telemetry Review',
+        '2:00 PM - Deploy Staging Hotfix & Verify Audits'
+      ];
+      const safetyWarnings = pendingApprovalsCount > 0 ? [`${pendingApprovalsCount} pending authorization requests are held in safety gate.`] : [];
+      const top3Tasks = [
+        'Review recent Git changes and commit.',
+        'Trigger template build sanity check.',
+        'Export security compliance reports.'
+      ];
+      const focusTask = 'Resolve security warnings and lock dependencies.';
+
+      const content = dailyBriefingGenerator.generateBriefingContent({
+        ssdStatus,
+        projectName,
+        healthScore,
+        healthStatus,
+        gitStatusSummary,
+        pendingApprovalsCount,
+        lastFailedCommand,
+        todayEvents,
+        top3Tasks,
+        safetyWarnings,
+        focusTask
+      });
+
+      const todayIso = new Date().toISOString().split('T')[0];
+      const targetFile = `daily_briefing_${todayIso}.md`;
+      const targetPath = simpleMockPath.join(briefingDir, targetFile);
+      
+      mockFs.writeFileSync(targetPath, content);
+      setBriefingOutput(content);
+      setActionLog(`Successfully generated and saved daily briefing to: /05-reports/daily-briefings/${targetFile}`);
+      setRenderTrigger(prev => prev + 1);
+    } catch (err: any) {
+      setActionLog(`Briefing failed: ${err.message}`);
+    }
+    setIsGeneratingBriefing(false);
   };
 
   const handleCreateFolders = () => {
@@ -1147,6 +1216,36 @@ function App() {
                 </div>
               )}
             </div>
+
+            {/* Daily Briefing Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <button 
+                className="btn-primary"
+                onClick={handleGenerateDailyBriefing}
+                disabled={isGeneratingBriefing}
+                style={{ padding: '8px 16px', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}
+              >
+                📊 {isGeneratingBriefing ? "Compiling Briefing..." : "Generate Today's Daily Briefing"}
+              </button>
+            </div>
+
+            {briefingOutput && (
+              <div className="settings-card text-left" style={{ margin: '0 0 16px 0', padding: '16px', borderLeft: '4px solid #6366f1', background: 'rgba(99,102,241,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem', color: '#a5b4fc' }}>📊 Active Daily Briefing Console</h3>
+                  <button 
+                    className="btn-secondary font-small" 
+                    onClick={() => setBriefingOutput("")}
+                    style={{ padding: '4px 8px' }}
+                  >
+                    Hide
+                  </button>
+                </div>
+                <pre style={{ margin: 0, padding: '12px', background: 'rgba(0,0,0,0.5)', borderRadius: '6px', color: '#cbd5e1', fontSize: '0.8rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', maxHeight: '350px', overflowY: 'auto' }}>
+                  {briefingOutput}
+                </pre>
+              </div>
+            )}
 
             {/* Diagnostics Stats Tiles */}
             <div className="stats-tiles-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>

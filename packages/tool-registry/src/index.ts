@@ -4,6 +4,7 @@ import { TerminalExecutor } from './terminal-executor.js';
 export * from './terminal-executor.js';
 export * from './templates.js';
 export * from './reports.js';
+export * from './briefing.js';
 
 export interface ToolResult {
   success: boolean;
