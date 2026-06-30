@@ -35,6 +35,7 @@ describe('SafetyEngine Tests', () => {
     assert.equal(safety.classifyCommand('git push origin main'), 'high');
     assert.equal(safety.classifyCommand('firebase deploy'), 'high');
     assert.equal(safety.classifyCommand('send email to bob@example.com'), 'high');
+    assert.equal(safety.classifyCommand('gmail_send_email recipient: "bob@gmail.com"'), 'high');
 
     const report = safety.analyzeCommand('git commit');
     assert.equal(report.isBlocked, false);

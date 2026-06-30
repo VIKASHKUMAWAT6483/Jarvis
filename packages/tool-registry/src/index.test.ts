@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
-import { StorageManager } from '@jarvis/storage-manager';
+import { StorageManager, SecretsManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
 import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, TerminalExecutor } from './index.js';
@@ -403,6 +403,10 @@ describe('ToolRegistry FileTools Tests', () => {
     const db = new DatabaseManager(storage, { fs, path });
     db.initialize();
 
+    // Set token
+    const secrets = new SecretsManager(storage, { fs, path });
+    secrets.setSecret('GMAIL_TOKEN', 'mock-active-token');
+
     const gmail = new GmailToolsManager(storage, db, { fs, path });
 
     // Test successful draft creation
@@ -417,7 +421,7 @@ describe('ToolRegistry FileTools Tests', () => {
     const logs = db.getCommands();
     assert.equal(logs.length, 1);
     assert.equal(logs[0].tool_name, 'gmail_create_draft');
-    assert.equal(logs[0].summary, 'Created email draft to "client@example.com" with subject "Testing Update".');
+    assert.equal(logs[0].summary, 'Created email draft to "c***t@example.com" with subject "Testin***date"');
     // Ensure body itself is not in summary or user_input
     assert.ok(!logs[0].summary.includes('App testing will be completed'));
     assert.ok(!logs[0].user_input.includes('App testing will be completed'));
@@ -441,6 +445,91 @@ describe('ToolRegistry FileTools Tests', () => {
     const blockedRes = await gmailDisconnected.gmailCreateDraft('client@example.com', 'Testing Update', 'App testing will be completed tomorrow.');
     assert.equal(blockedRes.success, false);
     assert.match(blockedRes.error || '', /External SSD is disconnected/);
+
+    cleanupSandbox();
+  });
+
+  test('7b. Advanced Gmail Tools Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const secrets = new SecretsManager(storage, { fs, path });
+    
+    // 1. Verify missing token throws GMAIL AUTH ERROR
+    const gmailNoToken = new GmailToolsManager(storage, db, { fs, path });
+    const searchNoToken = await gmailNoToken.gmailSearch('Urgent');
+    assert.equal(searchNoToken.success, false);
+    assert.match(searchNoToken.error || '', /Gmail OAuth credentials token is missing/);
+    assert.equal(searchNoToken.output, 'gmail_token_expired');
+
+    // 2. Set Active token and verify searching & reading works
+    secrets.setSecret('GMAIL_TOKEN', 'active-token-xyz');
+    const gmail = new GmailToolsManager(storage, db, { fs, path });
+
+    // Search Gmail
+    const searchRes = await gmail.gmailSearch('Urgent');
+    assert.equal(searchRes.success, true);
+    assert.match(searchRes.output, /thread_101/);
+    assert.match(searchRes.output, /Term Sheet Revisions/);
+
+    // Read thread
+    const readRes = await gmail.gmailReadThread('thread_101');
+    assert.equal(readRes.success, true);
+    assert.match(readRes.output, /lead-investor@venture.com/);
+    assert.match(readRes.output, /12% ESOP pool/);
+
+    // Summarize email
+    const summaryRes = await gmail.gmailSummarizeEmail('thread_101');
+    assert.equal(summaryRes.success, true);
+    assert.match(summaryRes.output, /Email Thread Summary/);
+    assert.match(summaryRes.output, /lead-investor@venture.com/);
+
+    // Create reply draft
+    const replyRes = await gmail.gmailCreateReplyDraft('thread_101', 'Let us finalize the valuation term sheets.');
+    assert.equal(replyRes.success, true);
+    assert.match(replyRes.output, /REPLY DRAFT SAVED SUCCESSFULLY/);
+
+    // Mark follow up
+    const followRes = await gmail.gmailMarkFollowUp('thread_101');
+    assert.equal(followRes.success, true);
+    assert.match(followRes.output, /starred and tagged/);
+
+    // Send email (high risk)
+    const sendRes = await gmail.gmailSendEmail('investor@venture.com', 'Final Valuation Agreement', 'Valuation pool allocation confirmed.');
+    assert.equal(sendRes.success, true);
+    assert.match(sendRes.output, /GMAIL MESSAGE TRANSMITTED/);
+
+    // Verify logs redactions and domain/subject masking
+    const logs = db.getCommands();
+    // Search log (gmail_search)
+    const searchLog = logs.find(l => l.tool_name === 'gmail_search');
+    assert.ok(searchLog);
+    assert.equal(searchLog.summary, 'Searched Gmail messages with query: "Urg***"');
+
+    // Read log (gmail_read_thread)
+    const readLog = logs.find(l => l.tool_name === 'gmail_read_thread');
+    assert.ok(readLog);
+    assert.equal(readLog.summary, 'Read Gmail thread "thread_101" from sender "l***r@venture.com" with subject "Urgent***ions"');
+    // Ensure actual body text "12% ESOP pool" is NOT in database log
+    assert.ok(!readLog.summary.includes('ESOP pool'));
+    assert.ok(!readLog.user_input.includes('ESOP pool'));
 
     cleanupSandbox();
   });
