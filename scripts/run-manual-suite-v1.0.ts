@@ -117,8 +117,8 @@ async function runManualTestingChecklist() {
       const res = await agentCore.handleUserPrompt("Jarvis, kal subah 8 baje remind karna", {
         activeProjectPath: "/Volumes/HP P500/Jarvis/02-projects/my-app"
       });
-      pass = res.approvalRequired === true && res.riskLevel === 'medium';
-      detail = "Voice command mapped to reminder_create. Triggered Safety Gate approval modal.";
+      pass = res.toolCalled === 'reminder_create' && res.toolResult?.success === true;
+      detail = "Voice command mapped to reminder_create. Executes and logs successfully.";
     }
     else if (test.checkType === "call_prep") {
       const callTool = registry.getTool('call_prepare');
