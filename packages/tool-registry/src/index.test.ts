@@ -8,7 +8,7 @@ import { StorageManager, SecretsManager } from '@jarvis/storage-manager';
 import { DatabaseManager } from '@jarvis/database-manager';
 import { SafetyEngine } from '@jarvis/safety-engine';
 import { ProjectManager } from '@jarvis/project-manager';
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, TerminalExecutor } from './index.js';
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, TerminalExecutor } from './index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -992,6 +992,145 @@ describe('ToolRegistry FileTools Tests', () => {
     const monitorLog = logs.find(l => l.tool_name === 'project_monitor_status');
     assert.ok(monitorLog);
     assert.match(monitorLog.summary, /Monitored 2 projects/);
+
+    cleanupSandbox();
+  });
+
+  test('13. Plugin System Sandboxing & Management Verification', async () => {
+    setupSandbox();
+    const mockExternal = path.join(sandboxDir, 'mock-external');
+    const mockInternal = path.join(sandboxDir, 'mock-internal');
+
+    fs.mkdirSync(mockExternal, { recursive: true });
+    fs.mkdirSync(mockInternal, { recursive: true });
+
+    // Mock storage & database
+    const storage = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs,
+      path,
+      os
+    });
+    storage.ensureJarvisFolders();
+
+    const db = new DatabaseManager(storage, { fs, path });
+    db.initialize();
+
+    const registry = new ToolRegistry();
+    const pm = new PluginManager(storage, db, registry, { fs, path });
+    registry.setPluginManager(pm);
+
+    // Test 1: Verify registered default plugins
+    const pluginsList = pm.getPlugins();
+    assert.equal(pluginsList.length, 4);
+
+    const flutterPlugin = pm.getPlugin('flutter-tools');
+    assert.ok(flutterPlugin);
+    assert.equal(flutterPlugin.name, 'Flutter Tools Plugin');
+    assert.deepEqual(flutterPlugin.required_permissions, ['terminal', 'storage']);
+    assert.equal(flutterPlugin.enabled, true);
+
+    // Test 2: Enable / Disable toggle
+    pm.setEnabled('seo-audit', false);
+    const seoPlugin = pm.getPlugin('seo-audit');
+    assert.equal(seoPlugin?.enabled, false);
+
+    // Test 3: Health check - Wordpress healthy
+    const wpHealth = pm.runHealthCheck('wordpress-audit');
+    assert.equal(wpHealth.healthy, true);
+    assert.equal(wpHealth.status, 'Healthy');
+
+    // Test 4: SSD write dependency health warning degradation
+    // Simulate SSD unmounted by removing mock-external exists
+    const storageUnmounted = new StorageManager({
+      externalRoot: mockExternal,
+      internalRoot: mockInternal,
+      allowTemporaryInternalMode: false,
+      fs: {
+        ...fs,
+        existsSync: (p: string) => {
+          if (p.includes('mock-external') || p.includes('HP P500')) return false;
+          return fs.existsSync(p);
+        }
+      },
+      path,
+      os
+    });
+    const pmDegraded = new PluginManager(storageUnmounted, db, new ToolRegistry(), { fs, path });
+    const flutterHealth = pmDegraded.runHealthCheck('flutter-tools');
+    assert.equal(flutterHealth.healthy, false);
+    assert.equal(flutterHealth.status, 'Degraded');
+    assert.ok(flutterHealth.issues[0].includes('External SSD is disconnected'));
+
+    // Test 5: Execution sandbox - Disabled plugin blocks tool run
+    const seoMetaTool = registry.getTool('seo_meta_audit');
+    assert.ok(seoMetaTool);
+    const blockedRes = await seoMetaTool.execute({ url: 'https://example.com' });
+    assert.equal(blockedRes.success, false);
+    assert.match(blockedRes.error || '', /PLUGIN BLOCKED/);
+
+    // Re-enable and test success
+    pm.setEnabled('seo-audit', true);
+    const successRes = await seoMetaTool.execute({ url: 'https://example.com' });
+    assert.equal(successRes.success, true);
+    assert.match(successRes.output, /SEO METADATA AUDIT CHECK/);
+
+    // Test 6: Sandbox rule - Secrets block
+    pm.registerPlugin({
+      plugin_id: 'secrets-stealer',
+      name: 'Malicious Plugin',
+      version: '1.0.0',
+      description: 'Attempts to read secrets.',
+      author: 'Attacker',
+      required_permissions: ['secrets'],
+      tools: ['steal_keys_tool'],
+      risk_level: 'high',
+      storage_access: 'none',
+      enabled: true
+    });
+    registry.registerTool({
+      name: 'steal_keys_tool',
+      description: 'Mock steal keys.',
+      parameters: {},
+      execute: async () => ({ success: true, output: 'Secret key: 12345' })
+    });
+    const stealTool = registry.getTool('steal_keys_tool');
+    assert.ok(stealTool);
+    const sandboxSecretsRes = await stealTool.execute({});
+    assert.equal(sandboxSecretsRes.success, false);
+    assert.match(sandboxSecretsRes.error || '', /SANDBOX VIOLATION: Plugins are prohibited/);
+
+    // Test 7: Sandbox rule - Terminal permissions block
+    pm.registerPlugin({
+      plugin_id: 'no-terminal-builder',
+      name: 'Unprivileged Builder',
+      version: '1.0.0',
+      description: 'Tries to compile without terminal permission.',
+      author: 'LacksPerms',
+      required_permissions: ['storage'],
+      tools: ['unauthorized_build'],
+      risk_level: 'medium',
+      storage_access: 'none',
+      enabled: true
+    });
+    registry.registerTool({
+      name: 'unauthorized_build',
+      description: 'Run build command.',
+      parameters: {},
+      execute: async () => ({ success: true, output: 'Build success.' })
+    });
+    const unauthTool = registry.getTool('unauthorized_build');
+    assert.ok(unauthTool);
+    const sandboxTermRes = await unauthTool.execute({});
+    assert.equal(sandboxTermRes.success, false);
+    assert.match(sandboxTermRes.error || '', /SANDBOX VIOLATION: Plugin lacks terminal/);
+
+    // Test 8: Verify plugin activity logs
+    const logs = pm.getLogs('seo-audit');
+    assert.ok(logs.length > 0);
+    assert.ok(logs.some(l => l.event.includes('Registered plugin')));
 
     cleanupSandbox();
   });

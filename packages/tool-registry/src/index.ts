@@ -7,6 +7,7 @@ export * from './templates.js';
 export * from './reports.js';
 export * from './briefing.js';
 export * from './errors.js';
+export * from './plugins.js';
 
 export interface ToolResult {
   success: boolean;
@@ -24,6 +25,11 @@ export interface ToolDefinition {
 
 export class ToolRegistry {
   private tools: Map<string, ToolDefinition> = new Map();
+  private pluginManager: any = null;
+
+  public setPluginManager(manager: any) {
+    this.pluginManager = manager;
+  }
 
   public registerTool(tool: ToolDefinition): void {
     if (this.tools.has(tool.name)) {
@@ -33,7 +39,20 @@ export class ToolRegistry {
   }
 
   public getTool(name: string): ToolDefinition | undefined {
-    return this.tools.get(name);
+    const tool = this.tools.get(name);
+    if (!tool) return undefined;
+
+    if (this.pluginManager) {
+      const plugins = this.pluginManager.getPlugins();
+      const plugin = plugins.find((p: any) => p.tools.includes(name));
+      if (plugin) {
+        return {
+          ...tool,
+          execute: (args) => this.pluginManager.executePluginTool(plugin.plugin_id, name, () => tool.execute(args))
+        };
+      }
+    }
+    return tool;
   }
 
   public listTools(): Omit<ToolDefinition, 'execute'>[] {

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { StorageManager, StorageCategory, SecretsManager, BackupManager } from "@jarvis/storage-manager";
 import { DatabaseManager } from "@jarvis/database-manager";
 import { ProjectManager } from "@jarvis/project-manager";
-import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics } from "@jarvis/tool-registry";
+import { ToolRegistry, FileToolsManager, GitToolsManager, BuildToolsManager, GmailToolsManager, CalendarToolsManager, MessageCallToolsManager, BrowserToolsManager, GithubToolsManager, MultiProjectToolsManager, PluginManager, TerminalExecutor, TemplateManager, ReportGenerator, DailyBriefingGenerator, ErrorDiagnostics } from "@jarvis/tool-registry";
 import { SafetyEngine, RiskLevel } from "@jarvis/safety-engine";
 import { AgentCore } from "@jarvis/agent-core";
 import { VoiceService } from "@jarvis/voice-service";
@@ -336,6 +336,16 @@ function App() {
     mpt.registerAll(registry);
     return registry;
   }, [storageManager, databaseManager, projectManager, terminalExecutor, mockFs, simpleMockPath]);
+
+  // Instantiate PluginManager
+  const pluginManager = useMemo(() => {
+    const pm = new PluginManager(storageManager, databaseManager, toolRegistry, {
+      fs: mockFs,
+      path: simpleMockPath
+    });
+    toolRegistry.setPluginManager(pm);
+    return pm;
+  }, [storageManager, databaseManager, toolRegistry, mockFs, simpleMockPath]);
 
   // Instantiate AgentCore (AI Text Assistant Mode)
   const agentCore = useMemo(() => {
@@ -1616,6 +1626,104 @@ function App() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+
+                {/* Plugin Manager Card */}
+                <div className="settings-card text-left" style={{ margin: '16px 0 0 0', padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <h3 style={{ margin: 0 }}>🔌 Jarvis Security Sandbox Plugin Manager</h3>
+                    <span className="badge status-success" style={{ fontSize: '0.65rem' }}>Active Sandbox Mode</span>
+                  </div>
+                  
+                  <p className="card-desc text-left font-small" style={{ marginBottom: '12px' }}>
+                    Manage third-party extension tools. Unknown plugins are auto-disabled and sandboxed by the Safety Engine.
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                    {pluginManager.getPlugins().map(plugin => {
+                      const health = pluginManager.runHealthCheck(plugin.plugin_id);
+                      return (
+                        <div 
+                          key={plugin.plugin_id} 
+                          style={{ 
+                            padding: '12px', 
+                            background: 'rgba(255,255,255,0.02)', 
+                            border: `1px solid ${plugin.enabled ? 'var(--border-color)' : 'rgba(239, 68, 68, 0.2)'}`, 
+                            borderRadius: '8px' 
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{plugin.name}</strong>
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-disabled)', marginLeft: '6px' }}>v{plugin.version}</span>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{plugin.description}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span 
+                                className="badge" 
+                                style={{ 
+                                  fontSize: '0.6rem', 
+                                  background: health.status === 'Healthy' ? '#10b981' : health.status === 'Degraded' ? '#f59e0b' : '#ef4444', 
+                                  color: '#fff' 
+                                }}
+                              >
+                                {health.status}
+                              </span>
+                              <button 
+                                className={`btn-${plugin.enabled ? 'secondary' : 'primary'} font-small`}
+                                onClick={() => {
+                                  pluginManager.setEnabled(plugin.plugin_id, !plugin.enabled);
+                                  setRenderTrigger(prev => prev + 1);
+                                }}
+                                style={{ padding: '2px 8px', fontSize: '0.65rem' }}
+                              >
+                                {plugin.enabled ? "Disable" : "Enable"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.65rem' }}>
+                            <span style={{ color: 'var(--text-disabled)' }}>Permissions:</span>
+                            {plugin.required_permissions.length === 0 ? (
+                              <span style={{ color: '#9ca3af' }}>None</span>
+                            ) : (
+                              plugin.required_permissions.map(perm => (
+                                <span key={perm} style={{ padding: '1px 5px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                                  🛡️ {perm}
+                                </span>
+                              ))
+                            )}
+                            
+                            <span style={{ color: 'var(--text-disabled)', marginLeft: '12px' }}>Risk:</span>
+                            <span style={{ color: plugin.risk_level === 'high' ? '#f87171' : plugin.risk_level === 'medium' ? '#fbbf24' : '#34d399' }}>
+                              {plugin.risk_level.toUpperCase()}
+                            </span>
+                          </div>
+
+                          {health.issues.length > 0 && (
+                            <div style={{ marginTop: '8px', padding: '6px 8px', background: 'rgba(245, 158, 11, 0.08)', borderLeft: '3px solid #f59e0b', borderRadius: '4px', fontSize: '0.65rem', color: '#fbbf24' }}>
+                              ⚠️ <strong>Degradation Alert:</strong> {health.issues[0]}
+                            </div>
+                          )}
+
+                          {/* Plugin action traces */}
+                          <div style={{ marginTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '6px' }}>
+                            <strong style={{ fontSize: '0.65rem', color: 'var(--text-disabled)', display: 'block', marginBottom: '2px' }}>Plugin Log Traces</strong>
+                            <div style={{ maxHeight: '60px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.6rem', color: '#a7f3d0' }}>
+                              {pluginManager.getLogs(plugin.plugin_id).slice(-2).map((log, i) => (
+                                <div key={i} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  [{new Date(log.timestamp).toLocaleTimeString()}] {log.event}
+                                </div>
+                              ))}
+                              {pluginManager.getLogs(plugin.plugin_id).length === 0 && (
+                                <div style={{ color: 'var(--text-disabled)' }}>No log traces captured.</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
